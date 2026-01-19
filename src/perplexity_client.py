@@ -66,18 +66,18 @@ class PerplexityClient:
         return cookies
 
     def _validate_cookies(self, cookies: dict) -> None:
-        """Validate that required cookies are present."""
+        """Validate cookies if provided. Empty cookies are allowed (anonymous mode)."""
+        # Empty cookies = anonymous mode with auto-generated session
+        # The underlying perplexity library handles this automatically
         if not cookies:
-            raise CookieError(
-                "No cookies provided. Set PERPLEXITY_CSRF_TOKEN and "
-                "PERPLEXITY_SESSION_TOKEN environment variables or pass cookies dict."
-            )
+            logger.info("No cookies provided - using anonymous mode with limited queries")
+            return
 
-        # Session token is required, CSRF is optional for some operations
-        if 'next-auth.session-token' not in cookies:
-            raise CookieError(
-                "Missing 'next-auth.session-token' cookie. "
-                "Get it from perplexity.ai using browser dev tools."
+        # If cookies provided but missing session token, warn user
+        if cookies and 'next-auth.session-token' not in cookies:
+            logger.warning(
+                "Cookies provided but missing 'next-auth.session-token'. "
+                "Falling back to anonymous mode."
             )
 
     def _get_client(self):
