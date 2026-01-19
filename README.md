@@ -8,7 +8,7 @@
 
 ---
 
-## ⚡ Quick Start
+## 🚀 Installation
 
 ```bash
 git clone https://github.com/teoobarca/perplexity-mcp.git
@@ -16,9 +16,83 @@ cd perplexity-mcp
 uv sync
 ```
 
+### Add to your client
+
+<table>
+<tr>
+<td width="140" align="center">
+<img src="https://cdn.simpleicons.org/cursor/000000" width="40" alt="Cursor"><br>
+<b>Cursor</b>
+</td>
+<td>
+
+Open Settings → MCP → Add new server:
+```json
+{
+  "command": "uv",
+  "args": ["--directory", "/path/to/perplexity-mcp", "run", "perplexity-mcp"]
+}
+```
+
+</td>
+</tr>
+<tr>
+<td align="center">
+<img src="https://cdn.simpleicons.org/anthropic/000000" width="40" alt="Claude"><br>
+<b>Claude Code</b>
+</td>
+<td>
+
 ```bash
 claude mcp add perplexity -s user -- uv --directory /path/to/perplexity-mcp run perplexity-mcp
 ```
+
+</td>
+</tr>
+<tr>
+<td align="center">
+<img src="https://cdn.simpleicons.org/visualstudiocode/007ACC" width="40" alt="VS Code"><br>
+<b>VS Code</b>
+</td>
+<td>
+
+Add to `.vscode/mcp.json`:
+```json
+{
+  "servers": {
+    "perplexity": {
+      "command": "uv",
+      "args": ["--directory", "/path/to/perplexity-mcp", "run", "perplexity-mcp"]
+    }
+  }
+}
+```
+
+</td>
+</tr>
+<tr>
+<td align="center">
+<img src="https://cdn.simpleicons.org/windowsterminal/000000" width="40" alt="Other"><br>
+<b>Other clients</b>
+</td>
+<td>
+
+Add to your MCP config:
+```json
+{
+  "mcpServers": {
+    "perplexity": {
+      "type": "stdio",
+      "command": "uv",
+      "args": ["--directory", "/path/to/perplexity-mcp", "run", "perplexity-mcp"]
+    }
+  }
+}
+```
+
+</td>
+</tr>
+</table>
 
 **That's it!** No cookies, no API keys needed. It just works.
 
@@ -34,9 +108,11 @@ claude mcp add perplexity -s user -- uv --directory /path/to/perplexity-mcp run 
 | `perplexity_research` | deep research | Exhaustive research with 50+ citations |
 
 **Parameters** (all tools):
-- `query` *(required)* — Your search query
-- `language` *(optional)* — ISO 639 code, default: `en-US`
-- `sources` *(optional)* — Array: `web`, `scholar`, `social`
+| Parameter | Required | Description |
+|:----------|:---------|:------------|
+| `query` | ✅ | Your search query |
+| `language` | ❌ | ISO 639 code (default: `en-US`) |
+| `sources` | ❌ | Array: `web`, `scholar`, `social` |
 
 ---
 
@@ -87,7 +163,7 @@ cp .env.example .env
 | **Authenticated** | Session cookies | Full access per your subscription |
 
 <details>
-<summary><b>How to get cookies</b></summary>
+<summary><b>📋 How to get cookies</b></summary>
 
 1. Open [perplexity.ai](https://perplexity.ai) and sign in
 2. Open DevTools (`F12`) → Network tab
@@ -100,45 +176,23 @@ cp .env.example .env
 
 ---
 
-## 📁 Manual Configuration
-
-<details>
-<summary>Add to <code>~/.claude.json</code></summary>
-
-```json
-{
-  "mcpServers": {
-    "perplexity": {
-      "type": "stdio",
-      "command": "uv",
-      "args": [
-        "--directory",
-        "/path/to/perplexity-mcp",
-        "run",
-        "perplexity-mcp"
-      ]
-    }
-  }
-}
-```
-
-</details>
-
----
-
 ## ⚠️ Limitations
 
-- **Unofficial** — May break if Perplexity changes their API
-- **Rate limits** — Standard Perplexity limits apply
-- **Cookie expiry** — ~30 days if using own account
+| Limitation | Details |
+|:-----------|:--------|
+| **Unofficial** | May break if Perplexity changes their API |
+| **Rate limits** | Standard Perplexity limits apply |
+| **Cookie expiry** | ~30 days if using own account |
 
 ---
 
 ## 📦 Dependencies
 
-- [`perplexity-api`](https://github.com/helallao/perplexity-ai) — Unofficial Perplexity wrapper
-- [`mcp`](https://modelcontextprotocol.io/) — Anthropic MCP SDK
-- [`python-dotenv`](https://github.com/theskumar/python-dotenv) — Environment loading
+| Package | Description |
+|:--------|:------------|
+| [`perplexity-api`](https://github.com/helallao/perplexity-ai) | Unofficial Perplexity wrapper |
+| [`mcp`](https://modelcontextprotocol.io/) | Anthropic MCP SDK |
+| [`python-dotenv`](https://github.com/theskumar/python-dotenv) | Environment loading |
 
 ---
 
@@ -149,5 +203,5 @@ MIT — see [LICENSE](LICENSE)
 ---
 
 <p align="center">
-  <i>Use responsibly. Respect Perplexity's Terms of Service.</i>
+  <sub>Use responsibly. Respect Perplexity's Terms of Service.</sub>
 </p>
