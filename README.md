@@ -18,13 +18,12 @@ uv sync
 
 ### Add to your client
 
-<table>
-<tr>
-<td width="140" align="center">
-<img src="https://cdn.simpleicons.org/cursor/000000" width="40" alt="Cursor"><br>
-<b>Cursor</b>
-</td>
-<td>
+[![Install in Cursor](https://img.shields.io/badge/Install_in-Cursor-000?style=for-the-badge&logo=cursor&logoColor=white)](https://cursor.com)
+[![Install in Claude Code](https://img.shields.io/badge/Install_in-Claude_Code-191919?style=for-the-badge&logo=anthropic&logoColor=white)](https://claude.ai/code)
+[![Install in VS Code](https://img.shields.io/badge/Install_in-VS_Code-007ACC?style=for-the-badge&logo=visualstudiocode&logoColor=white)](https://code.visualstudio.com/)
+
+<details>
+<summary><b>Cursor</b></summary>
 
 Open Settings → MCP → Add new server:
 ```json
@@ -33,28 +32,18 @@ Open Settings → MCP → Add new server:
   "args": ["--directory", "/path/to/perplexity-mcp", "run", "perplexity-mcp"]
 }
 ```
+</details>
 
-</td>
-</tr>
-<tr>
-<td align="center">
-<img src="https://cdn.simpleicons.org/anthropic/000000" width="40" alt="Claude"><br>
-<b>Claude Code</b>
-</td>
-<td>
+<details>
+<summary><b>Claude Code</b></summary>
 
 ```bash
 claude mcp add perplexity -s user -- uv --directory /path/to/perplexity-mcp run perplexity-mcp
 ```
+</details>
 
-</td>
-</tr>
-<tr>
-<td align="center">
-<img src="https://cdn.simpleicons.org/visualstudiocode/007ACC" width="40" alt="VS Code"><br>
-<b>VS Code</b>
-</td>
-<td>
+<details>
+<summary><b>VS Code</b></summary>
 
 Add to `.vscode/mcp.json`:
 ```json
@@ -67,15 +56,10 @@ Add to `.vscode/mcp.json`:
   }
 }
 ```
+</details>
 
-</td>
-</tr>
-<tr>
-<td align="center">
-<img src="https://cdn.simpleicons.org/windowsterminal/000000" width="40" alt="Other"><br>
-<b>Other clients</b>
-</td>
-<td>
+<details>
+<summary><b>Other MCP clients</b></summary>
 
 Add to your MCP config:
 ```json
@@ -89,10 +73,7 @@ Add to your MCP config:
   }
 }
 ```
-
-</td>
-</tr>
-</table>
+</details>
 
 **That's it!** No cookies, no API keys needed. It just works.
 
@@ -107,12 +88,10 @@ Add to your MCP config:
 | `perplexity_reason` | reasoning | Step-by-step analytical reasoning |
 | `perplexity_research` | deep research | Exhaustive research with 50+ citations |
 
-**Parameters** (all tools):
-| Parameter | Required | Description |
-|:----------|:---------|:------------|
-| `query` | ✅ | Your search query |
-| `language` | ❌ | ISO 639 code (default: `en-US`) |
-| `sources` | ❌ | Array: `web`, `scholar`, `social` |
+**Parameters:**
+- `query` *(required)* — Your search query
+- `language` *(optional)* — ISO 639 code, default: `en-US`
+- `sources` *(optional)* — Array: `web`, `scholar`, `social`
 
 ---
 
@@ -140,12 +119,6 @@ Query → MCP Server → perplexity-api → Perplexity SSE API
                SSE response streaming
 ```
 
-The library:
-- Impersonates Chrome browser with realistic headers
-- Creates anonymous sessions automatically
-- Sends queries to internal `/rest/sse/perplexity_ask` endpoint
-- Streams back answers with citations
-
 ---
 
 ## 🔐 Optional: Use Your Own Account
@@ -159,8 +132,8 @@ cp .env.example .env
 
 | Mode | Setup | Access |
 |:-----|:------|:-------|
-| **Anonymous** *(default)* | Nothing needed | Basic queries, Pro features limited |
-| **Authenticated** | Session cookies | Full access per your subscription |
+| **Anonymous** *(default)* | Nothing needed | Basic queries, Pro limited |
+| **Authenticated** | Session cookies | Full subscription access |
 
 <details>
 <summary><b>📋 How to get cookies</b></summary>
@@ -178,21 +151,17 @@ cp .env.example .env
 
 ## ⚠️ Limitations
 
-| Limitation | Details |
-|:-----------|:--------|
-| **Unofficial** | May break if Perplexity changes their API |
-| **Rate limits** | Standard Perplexity limits apply |
-| **Cookie expiry** | ~30 days if using own account |
+- **Unofficial** — May break if Perplexity changes their API
+- **Rate limits** — Standard Perplexity limits apply
+- **Cookie expiry** — ~30 days if using own account
 
 ---
 
 ## 📦 Dependencies
 
-| Package | Description |
-|:--------|:------------|
-| [`perplexity-api`](https://github.com/helallao/perplexity-ai) | Unofficial Perplexity wrapper |
-| [`mcp`](https://modelcontextprotocol.io/) | Anthropic MCP SDK |
-| [`python-dotenv`](https://github.com/theskumar/python-dotenv) | Environment loading |
+- [`perplexity-api`](https://github.com/helallao/perplexity-ai) — Unofficial Perplexity wrapper
+- [`mcp`](https://modelcontextprotocol.io/) — Anthropic MCP SDK
+- [`python-dotenv`](https://github.com/theskumar/python-dotenv) — Environment loading
 
 ---
 
