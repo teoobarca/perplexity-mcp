@@ -16,34 +16,23 @@ cd perplexity-mcp
 uv sync
 ```
 
-### Add to your client
+### Claude Code
 
-[![Install in Cursor](https://img.shields.io/badge/Install_in-Cursor-000?style=for-the-badge&logo=cursor&logoColor=white)](https://cursor.com)
-[![Install in Claude Code](https://img.shields.io/badge/Install_in-Claude_Code-191919?style=for-the-badge&logo=anthropic&logoColor=white)](https://claude.ai/code)
-[![Install in VS Code](https://img.shields.io/badge/Install_in-VS_Code-007ACC?style=for-the-badge&logo=visualstudiocode&logoColor=white)](https://code.visualstudio.com/)
+```bash
+claude mcp add perplexity -s user -- uv --directory /path/to/perplexity-mcp run perplexity-mcp
+```
 
-<details>
-<summary><b>Cursor</b></summary>
+### Cursor
 
-Open Settings → MCP → Add new server:
+Settings → MCP → Add new server:
 ```json
 {
   "command": "uv",
   "args": ["--directory", "/path/to/perplexity-mcp", "run", "perplexity-mcp"]
 }
 ```
-</details>
 
-<details>
-<summary><b>Claude Code</b></summary>
-
-```bash
-claude mcp add perplexity -s user -- uv --directory /path/to/perplexity-mcp run perplexity-mcp
-```
-</details>
-
-<details>
-<summary><b>VS Code</b></summary>
+### VS Code
 
 Add to `.vscode/mcp.json`:
 ```json
@@ -56,12 +45,9 @@ Add to `.vscode/mcp.json`:
   }
 }
 ```
-</details>
 
-<details>
-<summary><b>Other MCP clients</b></summary>
+### Other clients
 
-Add to your MCP config:
 ```json
 {
   "mcpServers": {
@@ -73,7 +59,6 @@ Add to your MCP config:
   }
 }
 ```
-</details>
 
 **That's it!** No cookies, no API keys needed. It just works.
 
@@ -136,7 +121,7 @@ cp .env.example .env
 | **Authenticated** | Session cookies | Full subscription access |
 
 <details>
-<summary><b>📋 How to get cookies</b></summary>
+<summary><b>How to get cookies</b></summary>
 
 1. Open [perplexity.ai](https://perplexity.ai) and sign in
 2. Open DevTools (`F12`) → Network tab
@@ -157,20 +142,6 @@ cp .env.example .env
 
 ---
 
-## 📦 Dependencies
-
-- [`perplexity-api`](https://github.com/helallao/perplexity-ai) — Unofficial Perplexity wrapper
-- [`mcp`](https://modelcontextprotocol.io/) — Anthropic MCP SDK
-- [`python-dotenv`](https://github.com/theskumar/python-dotenv) — Environment loading
-
----
-
 ## 📄 License
 
-MIT — see [LICENSE](LICENSE)
-
----
-
-<p align="center">
-  <sub>Use responsibly. Respect Perplexity's Terms of Service.</sub>
-</p>
+MIT
