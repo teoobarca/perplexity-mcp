@@ -1,99 +1,109 @@
-# Perplexity MCP Server
+# 🔍 Perplexity MCP Server
 
-Unofficial MCP server for Perplexity AI. Works out of the box - no API keys, no configuration required.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![MCP](https://img.shields.io/badge/MCP-Compatible-green.svg)](https://modelcontextprotocol.io/)
 
-## Quick Start
+> Unofficial MCP server for Perplexity AI. Works out of the box — no API keys, no configuration required.
+
+---
+
+## ⚡ Quick Start
 
 ```bash
 git clone https://github.com/teoobarca/perplexity-mcp.git
 cd perplexity-mcp
 uv sync
+```
 
-# Add to Claude Code
+```bash
 claude mcp add perplexity -s user -- uv --directory /path/to/perplexity-mcp run perplexity-mcp
 ```
 
 **That's it!** No cookies, no API keys needed. It just works.
 
-## How It Works
+---
 
-This MCP server wraps the unofficial [helallao/perplexity-ai](https://github.com/helallao/perplexity-ai) library, which reverse-engineers Perplexity's web interface.
+## 🛠️ Available Tools
 
-### No Configuration Required
+| Tool | Mode | Description |
+|:-----|:-----|:------------|
+| `perplexity_search` | auto | Quick basic search for simple queries |
+| `perplexity_ask` | pro | Pro mode with citations and detailed answers |
+| `perplexity_reason` | reasoning | Step-by-step analytical reasoning |
+| `perplexity_research` | deep research | Exhaustive research with 50+ citations |
 
-The library automatically creates anonymous sessions with Perplexity. When you make a query:
+**Parameters** (all tools):
+- `query` *(required)* — Your search query
+- `language` *(optional)* — ISO 639 code, default: `en-US`
+- `sources` *(optional)* — Array: `web`, `scholar`, `social`
 
-1. Library impersonates a Chrome browser using `curl_cffi`
-2. Creates a session with Perplexity's servers
-3. Sends your query to the internal SSE endpoint (`/rest/sse/perplexity_ask`)
-4. Streams back the response with citations
+---
 
-### Optional: Use Your Own Account
+## 💬 Usage Examples
 
-If you want unlimited queries with your Perplexity Pro subscription, you can optionally provide your session cookies:
+> Use `perplexity_search` to find the current price of Bitcoin.
+
+> Use `perplexity_ask` to explain how mRNA vaccines work.
+
+> Use `perplexity_reason` to analyze pros and cons of remote work.
+
+> Use `perplexity_research` to find latest research on intermittent fasting.
+
+---
+
+## 🔧 How It Works
+
+This server wraps [helallao/perplexity-ai](https://github.com/helallao/perplexity-ai), which reverse-engineers Perplexity's web interface.
+
+```
+Query → MCP Server → perplexity-api → Perplexity SSE API
+                          ↓
+               Chrome impersonation via curl_cffi
+               Anonymous session creation
+               SSE response streaming
+```
+
+The library:
+- Impersonates Chrome browser with realistic headers
+- Creates anonymous sessions automatically
+- Sends queries to internal `/rest/sse/perplexity_ask` endpoint
+- Streams back answers with citations
+
+---
+
+## 🔐 Optional: Use Your Own Account
+
+For unlimited queries with Perplexity Pro, provide your session cookies:
 
 ```bash
 cp .env.example .env
 # Edit .env with your cookies
 ```
 
-| Cookie | Purpose |
-|--------|---------|
-| `next-auth.session-token` | Your authenticated session (JWT token) |
-| `next-auth.csrf-token` | CSRF protection (optional) |
+| Mode | Setup | Access |
+|:-----|:------|:-------|
+| **Anonymous** *(default)* | Nothing needed | Basic queries, Pro features limited |
+| **Authenticated** | Session cookies | Full access per your subscription |
 
-**How to get cookies:**
+<details>
+<summary><b>How to get cookies</b></summary>
+
 1. Open [perplexity.ai](https://perplexity.ai) and sign in
 2. Open DevTools (`F12`) → Network tab
 3. Refresh the page
-4. Right-click first request → Copy → Copy as cURL (bash)
+4. Right-click first request → Copy → Copy as cURL
 5. Go to [curlconverter.com/python](https://curlconverter.com/python)
-6. Paste cURL and extract cookie values
+6. Extract `next-auth.session-token` and `next-auth.csrf-token`
 
-### Anonymous vs Authenticated
+</details>
 
-| Mode | Setup | Limits |
-|------|-------|--------|
-| **Anonymous** (default) | None! Just install and use | Basic queries work, Pro features limited |
-| **With cookies** | Provide session cookies | Full access based on your subscription |
+---
 
-## Available Tools
+## 📁 Manual Configuration
 
-| Tool | Mode | Description |
-|------|------|-------------|
-| `perplexity_search` | auto | Quick basic search for simple queries |
-| `perplexity_ask` | pro | Pro mode with citations and detailed answers |
-| `perplexity_reason` | reasoning | Step-by-step analytical reasoning |
-| `perplexity_research` | deep research | Exhaustive research with 50+ citations |
-
-### Tool Parameters
-
-All tools accept:
-- `query` (required) - Your search query
-- `language` (optional) - ISO 639 language code, default: `en-US`
-- `sources` (optional) - Array of `web`, `scholar`, `social`, default: `["web"]`
-
-## Usage Examples
-
-```
-Use perplexity_search to find the current price of Bitcoin.
-```
-
-```
-Use perplexity_ask to explain how mRNA vaccines work.
-```
-
-```
-Use perplexity_reason to analyze pros and cons of remote work.
-```
-
-```
-Use perplexity_research to find latest research on intermittent fasting.
-```
-
-## Manual Configuration
-
-Add to `~/.claude.json`:
+<details>
+<summary>Add to <code>~/.claude.json</code></summary>
 
 ```json
 {
@@ -112,42 +122,32 @@ Add to `~/.claude.json`:
 }
 ```
 
-## Verification
+</details>
 
-```bash
-# List installed MCP servers
-claude mcp list
+---
 
-# Or inside Claude Code
-/mcp
-```
+## ⚠️ Limitations
 
-## Technical Details
+- **Unofficial** — May break if Perplexity changes their API
+- **Rate limits** — Standard Perplexity limits apply
+- **Cookie expiry** — ~30 days if using own account
 
-### Under the Hood
+---
 
-The underlying `perplexity-api` library:
-- Uses `curl_cffi` to impersonate Chrome browser with realistic headers
-- Sends requests to Perplexity's internal REST/SSE endpoints
-- Parses Server-Sent Events response stream
-- Extracts answers, citations, and metadata
+## 📦 Dependencies
 
-### Limitations
+- [`perplexity-api`](https://github.com/helallao/perplexity-ai) — Unofficial Perplexity wrapper
+- [`mcp`](https://modelcontextprotocol.io/) — Anthropic MCP SDK
+- [`python-dotenv`](https://github.com/theskumar/python-dotenv) — Environment loading
 
-- **Unofficial** - May break if Perplexity changes their internal API
-- **Rate limits** - Perplexity's standard rate limits apply
-- **Cookie expiry** - If using own account, cookies expire after ~30 days
+---
 
-## Dependencies
+## 📄 License
 
-- `perplexity-api` - Unofficial Perplexity wrapper ([helallao/perplexity-ai](https://github.com/helallao/perplexity-ai))
-- `mcp` - Anthropic MCP SDK
-- `python-dotenv` - Environment variable loading
+MIT — see [LICENSE](LICENSE)
 
-## License
+---
 
-MIT
-
-## Disclaimer
-
-This is an unofficial wrapper using reverse-engineered endpoints. Use responsibly and respect Perplexity's Terms of Service.
+<p align="center">
+  <i>Use responsibly. Respect Perplexity's Terms of Service.</i>
+</p>
