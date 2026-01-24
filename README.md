@@ -66,15 +66,17 @@ Add to `.vscode/mcp.json`:
 
 ## 🛠️ Available Tools
 
-| Tool | Mode | Description |
-|:-----|:-----|:------------|
-| `perplexity_search` | auto | Quick basic search for simple queries |
-| `perplexity_ask` | pro | Pro mode with citations and detailed answers |
-| `perplexity_reason` | reasoning | Step-by-step analytical reasoning |
-| `perplexity_research` | deep research | Exhaustive research with 50+ citations |
+Perplexity is an AI model, not a search engine — provide context and specific requirements for better results.
+
+| Tool | Best For |
+|:-----|:---------|
+| `perplexity_search` | Quick facts, simple questions |
+| `perplexity_ask` | Tech questions, documentation, how-to guides |
+| `perplexity_reason` | Comparisons, trade-offs, decisions |
+| `perplexity_research` | Deep analysis, architecture decisions (10-30+ citations) |
 
 **Parameters:**
-- `query` *(required)* — Your search query
+- `query` *(required)* — Natural language question with context
 - `language` *(optional)* — ISO 639 code, default: `en-US`
 - `sources` *(optional)* — Array: `web`, `scholar`, `social`
 
@@ -82,13 +84,25 @@ Add to `.vscode/mcp.json`:
 
 ## 💬 Usage Examples
 
-> Use `perplexity_search` to find the current price of Bitcoin.
+```
+perplexity_search: "What is the latest stable version of React?"
+```
 
-> Use `perplexity_ask` to explain how mRNA vaccines work.
+```
+perplexity_ask: "How to implement JWT auth in Next.js 14 App Router
+with httpOnly cookies for a SaaS app?"
+```
 
-> Use `perplexity_reason` to analyze pros and cons of remote work.
+```
+perplexity_reason: "Should I use Prisma or Drizzle for a new Next.js project?
+Need type-safety, good DX, and must work with Planetscale MySQL."
+```
 
-> Use `perplexity_research` to find latest research on intermittent fasting.
+```
+perplexity_research: "Best practices for LLM API key rotation in production
+Node.js apps - need patterns for zero-downtime rotation, secret storage
+options, and monitoring."
+```
 
 ---
 

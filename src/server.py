@@ -6,8 +6,8 @@ authentication. Requires valid Perplexity session cookies.
 """
 
 import asyncio
-import json
 import logging
+import os
 import sys
 from typing import Any
 
@@ -17,6 +17,10 @@ from mcp.types import TextContent
 
 from .perplexity_client import PerplexityClient, CookieError, PerplexityClientError
 from .tools import TOOLS, TOOL_METHOD_MAP
+
+# Configuration from environment
+TIMEOUT_SECONDS = int(os.getenv("PERPLEXITY_TIMEOUT", "120"))
+MAX_RETRIES = int(os.getenv("PERPLEXITY_MAX_RETRIES", "2"))
 
 # Configure logging
 logging.basicConfig(
@@ -67,42 +71,79 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
             text=f"Unknown tool: {name}. Available: {list(TOOL_METHOD_MAP.keys())}"
         )]
 
-    try:
-        client = get_client()
-        method_name = TOOL_METHOD_MAP[name]
-        method = getattr(client, method_name)
+    # Extract arguments
+    query = arguments.get("query", "")
+    sources = arguments.get("sources")
+    language = arguments.get("language", "en-US")
 
-        # Extract arguments
-        query = arguments.get("query", "")
-        sources = arguments.get("sources")
-        language = arguments.get("language", "en-US")
+    last_error = None
+    for attempt in range(MAX_RETRIES + 1):
+        try:
+            client = get_client()
+            method_name = TOOL_METHOD_MAP[name]
+            method = getattr(client, method_name)
 
-        # Run synchronous client in thread pool to not block async
-        loop = asyncio.get_event_loop()
-        response = await loop.run_in_executor(
-            None,
-            lambda: method(query=query, sources=sources, language=language)
-        )
+            # Run synchronous client in thread pool with timeout
+            loop = asyncio.get_event_loop()
+            response = await asyncio.wait_for(
+                loop.run_in_executor(
+                    None,
+                    lambda: method(query=query, sources=sources, language=language)
+                ),
+                timeout=TIMEOUT_SECONDS
+            )
 
-        # Format response
-        result = format_response(response)
-        logger.info(f"Tool {name} completed successfully")
-        return [TextContent(type="text", text=result)]
+            # Format response
+            result = format_response(response)
+            logger.info(f"Tool {name} completed successfully")
+            return [TextContent(type="text", text=result)]
 
-    except CookieError as e:
-        error_msg = f"Cookie error: {e}\n\nTo fix:\n1. Login to perplexity.ai\n2. Open DevTools (F12) → Network tab\n3. Refresh page\n4. Right-click first request → Copy as cURL\n5. Paste at curlconverter.com/python\n6. Copy cookies to .env file"
-        logger.error(error_msg)
-        return [TextContent(type="text", text=error_msg)]
+        except asyncio.TimeoutError:
+            error_msg = (
+                f"Request timed out after {TIMEOUT_SECONDS}s. "
+                f"For research queries, try setting PERPLEXITY_TIMEOUT=300 in your environment."
+            )
+            logger.error(error_msg)
+            return [TextContent(type="text", text=error_msg)]
 
-    except PerplexityClientError as e:
-        error_msg = f"Perplexity client error: {e}"
-        logger.error(error_msg)
-        return [TextContent(type="text", text=error_msg)]
+        except CookieError as e:
+            error_msg = (
+                f"Cookie error: {e}\n\n"
+                "To fix:\n"
+                "1. Login to perplexity.ai\n"
+                "2. Open DevTools (F12) → Network tab\n"
+                "3. Refresh page\n"
+                "4. Right-click first request → Copy as cURL\n"
+                "5. Paste at curlconverter.com/python\n"
+                "6. Copy cookies to .env file"
+            )
+            logger.error(error_msg)
+            return [TextContent(type="text", text=error_msg)]
 
-    except Exception as e:
-        error_msg = f"Unexpected error: {type(e).__name__}: {e}"
-        logger.exception(error_msg)
-        return [TextContent(type="text", text=error_msg)]
+        except PerplexityClientError as e:
+            last_error = e
+            if attempt < MAX_RETRIES:
+                wait_time = 2 ** attempt  # Exponential backoff: 1s, 2s
+                logger.warning(f"Attempt {attempt + 1} failed: {e}. Retrying in {wait_time}s...")
+                await asyncio.sleep(wait_time)
+                continue
+            error_msg = f"Perplexity error after {MAX_RETRIES + 1} attempts: {e}"
+            logger.error(error_msg)
+            return [TextContent(type="text", text=error_msg)]
+
+        except Exception as e:
+            last_error = e
+            if attempt < MAX_RETRIES and "rate" in str(e).lower():
+                wait_time = 2 ** attempt
+                logger.warning(f"Rate limit hit. Retrying in {wait_time}s...")
+                await asyncio.sleep(wait_time)
+                continue
+            error_msg = f"Unexpected error: {type(e).__name__}: {e}"
+            logger.exception(error_msg)
+            return [TextContent(type="text", text=error_msg)]
+
+    # Should not reach here, but just in case
+    return [TextContent(type="text", text=f"Failed after all retries: {last_error}")]
 
 
 def format_response(response: dict) -> str:
