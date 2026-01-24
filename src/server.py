@@ -19,7 +19,7 @@ from .perplexity_client import PerplexityClient, CookieError, PerplexityClientEr
 from .tools import TOOLS, TOOL_METHOD_MAP
 
 # Configuration from environment
-TIMEOUT_SECONDS = int(os.getenv("PERPLEXITY_TIMEOUT", "120"))
+TIMEOUT_SECONDS = int(os.getenv("PERPLEXITY_TIMEOUT", "900"))  # 15 min default for research
 MAX_RETRIES = int(os.getenv("PERPLEXITY_MAX_RETRIES", "2"))
 
 # Configure logging
