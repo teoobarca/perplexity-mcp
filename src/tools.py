@@ -1,5 +1,10 @@
 """
 MCP Tool definitions for Perplexity.
+
+Tool descriptions are optimized for LLM agents - they explain:
+1. What the tool does and when to use it
+2. That Perplexity is an AI model (not a search engine) that benefits from context
+3. Examples of good queries in parameter descriptions
 """
 
 from mcp.types import Tool
@@ -9,15 +14,20 @@ TOOLS = [
     Tool(
         name="perplexity_ask",
         description=(
-            "Pro mode search with Perplexity AI. Returns comprehensive answers "
-            "with citations. Best for general questions requiring detailed responses."
+            "AI-powered answer engine for tech questions, documentation lookups, and how-to guides. "
+            "Perplexity is an AI model (not a search engine) - provide context and specific requirements "
+            "in your query for better results. Returns synthesized answers with citations."
         ),
         inputSchema={
             "type": "object",
             "properties": {
                 "query": {
                     "type": "string",
-                    "description": "The search query"
+                    "description": (
+                        "Natural language question with context. Include specific requirements, "
+                        "constraints, or use case. Example: 'How to implement JWT auth in Next.js 14 "
+                        "App Router with httpOnly cookies for a SaaS app?'"
+                    )
                 },
                 "sources": {
                     "type": "array",
@@ -35,16 +45,22 @@ TOOLS = [
     Tool(
         name="perplexity_research",
         description=(
-            "Deep research mode for exhaustive analysis. Returns comprehensive "
-            "research with extensive citations. Best for complex topics requiring "
-            "thorough investigation. May take longer than other modes."
+            "Deep research agent for comprehensive analysis of complex topics. "
+            "Provide detailed context about what you need and why - this AI model spends more time "
+            "gathering and synthesizing information. Returns extensive reports with 10-30+ citations. "
+            "Use for architecture decisions, technology comparisons, or thorough investigations."
         ),
         inputSchema={
             "type": "object",
             "properties": {
                 "query": {
                     "type": "string",
-                    "description": "The research query"
+                    "description": (
+                        "Detailed research question with full context. Explain the problem, "
+                        "constraints, and what insights you need. Example: 'Best practices for "
+                        "LLM API key rotation in production Node.js apps - need patterns for "
+                        "zero-downtime rotation, secret storage options, and monitoring.'"
+                    )
                 },
                 "sources": {
                     "type": "array",
@@ -62,16 +78,21 @@ TOOLS = [
     Tool(
         name="perplexity_reason",
         description=(
-            "Reasoning mode for step-by-step analysis. Returns structured "
-            "reasoning with logical steps. Best for questions requiring "
-            "analytical thinking and problem-solving."
+            "Reasoning-focused AI for analytical questions requiring step-by-step thinking. "
+            "Best for comparisons, trade-off analysis, and decisions. Provide your specific "
+            "situation and requirements - the model reasons through options systematically."
         ),
         inputSchema={
             "type": "object",
             "properties": {
                 "query": {
                     "type": "string",
-                    "description": "The query requiring reasoning"
+                    "description": (
+                        "Analytical question with your specific context. Include constraints, "
+                        "priorities, and what you're optimizing for. Example: 'Should I use "
+                        "Prisma or Drizzle for a new Next.js project? Need type-safety, "
+                        "good DX, and must work with Planetscale MySQL.'"
+                    )
                 },
                 "sources": {
                     "type": "array",
@@ -89,15 +110,17 @@ TOOLS = [
     Tool(
         name="perplexity_search",
         description=(
-            "Basic auto mode search. Returns quick answers with citations. "
-            "Best for simple factual queries that don't require deep analysis."
+            "Quick fact lookup for simple questions. Use perplexity_ask for tech questions "
+            "or perplexity_reason for comparisons. Returns brief answers with citations."
         ),
         inputSchema={
             "type": "object",
             "properties": {
                 "query": {
                     "type": "string",
-                    "description": "The search query"
+                    "description": (
+                        "Simple factual question. Example: 'What is the latest stable version of React?'"
+                    )
                 },
                 "sources": {
                     "type": "array",
