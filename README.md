@@ -1,14 +1,43 @@
-# 🔍 Perplexity MCP Server
+# Perplexity MCP Server
+
+**Free Perplexity AI for your coding assistant. No API keys, no account needed.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![MCP](https://img.shields.io/badge/MCP-Compatible-green.svg)](https://modelcontextprotocol.io/)
 
-> Unofficial MCP server for Perplexity AI. Works out of the box — no API keys, no configuration required.
+---
+
+## Why Perplexity?
+
+Most AI coding assistants have some form of web search, but it's basic — you get links and snippets, not answers.
+
+[Perplexity](https://perplexity.ai) is an AI research assistant that actually synthesizes information:
+
+- Combines multiple sources into coherent answers
+- Cites everything so you can verify
+- Has specialized modes for reasoning and deep research (10-30+ citations)
+
+This MCP server connects your assistant to Perplexity's web interface — no API keys, no subscription, no cost.
 
 ---
 
-## 🚀 Installation
+## What You Get
+
+Four specialized tools, each optimized for different tasks:
+
+| Tool | Use case | Example |
+|:-----|:---------|:--------|
+| `perplexity_search` | Quick facts | "Latest stable version of Node.js?" |
+| `perplexity_ask` | Technical questions | "How to set up OAuth in Next.js 15 App Router?" |
+| `perplexity_reason` | Decisions & trade-offs | "Prisma vs Drizzle for serverless Postgres?" |
+| `perplexity_research` | Deep analysis (10-30+ citations) | "Best practices for LLM API key rotation in production" |
+
+**vs. built-in search:** Your assistant asks "What's new in React 19?" — built-in search returns 10 blue links. Perplexity returns a synthesized answer with specific breaking changes, migration steps, and citations.
+
+---
+
+## Installation
 
 ```bash
 git clone https://github.com/teoobarca/perplexity-mcp.git
@@ -16,13 +45,18 @@ cd perplexity-mcp
 uv sync
 ```
 
-### Claude Code
+Then add to your AI tool:
+
+<details>
+<summary><b>Claude Code</b></summary>
 
 ```bash
 claude mcp add perplexity -s user -- uv --directory /path/to/perplexity-mcp run perplexity-mcp
 ```
+</details>
 
-### Cursor
+<details>
+<summary><b>Cursor</b></summary>
 
 Settings → MCP → Add new server:
 ```json
@@ -31,8 +65,26 @@ Settings → MCP → Add new server:
   "args": ["--directory", "/path/to/perplexity-mcp", "run", "perplexity-mcp"]
 }
 ```
+</details>
 
-### VS Code
+<details>
+<summary><b>Windsurf</b></summary>
+
+Add to your MCP config:
+```json
+{
+  "mcpServers": {
+    "perplexity": {
+      "command": "uv",
+      "args": ["--directory", "/path/to/perplexity-mcp", "run", "perplexity-mcp"]
+    }
+  }
+}
+```
+</details>
+
+<details>
+<summary><b>VS Code + Copilot</b></summary>
 
 Add to `.vscode/mcp.json`:
 ```json
@@ -45,8 +97,10 @@ Add to `.vscode/mcp.json`:
   }
 }
 ```
+</details>
 
-### Other clients
+<details>
+<summary><b>Other MCP clients</b></summary>
 
 ```json
 {
@@ -59,103 +113,62 @@ Add to `.vscode/mcp.json`:
   }
 }
 ```
+</details>
 
-**That's it!** No cookies, no API keys needed. It just works.
-
----
-
-## 🛠️ Available Tools
-
-Perplexity is an AI model, not a search engine — provide context and specific requirements for better results.
-
-| Tool | Best For |
-|:-----|:---------|
-| `perplexity_search` | Quick facts, simple questions |
-| `perplexity_ask` | Tech questions, documentation, how-to guides |
-| `perplexity_reason` | Comparisons, trade-offs, decisions |
-| `perplexity_research` | Deep analysis, architecture decisions (10-30+ citations) |
-
-**Parameters:**
-- `query` *(required)* — Natural language question with context
-- `language` *(optional)* — ISO 639 code, default: `en-US`
-- `sources` *(optional)* — Array: `web`, `scholar`, `social`
+**Done.** Free Perplexity access, no API keys, no account required.
 
 ---
 
-## 💬 Usage Examples
+## How It Works
+
+This server uses [helallao/perplexity-ai](https://github.com/helallao/perplexity-ai) to connect to Perplexity's web interface — the same way you'd use perplexity.ai in your browser, but automated.
 
 ```
-perplexity_search: "What is the latest stable version of React?"
-```
-
-```
-perplexity_ask: "How to implement JWT auth in Next.js 14 App Router
-with httpOnly cookies for a SaaS app?"
-```
-
-```
-perplexity_reason: "Should I use Prisma or Drizzle for a new Next.js project?
-Need type-safety, good DX, and must work with Planetscale MySQL."
-```
-
-```
-perplexity_research: "Best practices for LLM API key rotation in production
-Node.js apps - need patterns for zero-downtime rotation, secret storage
-options, and monitoring."
+Your AI Assistant → MCP Server → Perplexity → Synthesized answer with citations
 ```
 
 ---
 
-## 🔧 How It Works
+## Optional: Authenticate for Unlimited Access
 
-This server wraps [helallao/perplexity-ai](https://github.com/helallao/perplexity-ai), which reverse-engineers Perplexity's web interface.
-
-```
-Query → MCP Server → perplexity-api → Perplexity SSE API
-                          ↓
-               Chrome impersonation via curl_cffi
-               Anonymous session creation
-               SSE response streaming
-```
-
----
-
-## 🔐 Optional: Use Your Own Account
-
-For unlimited queries with Perplexity Pro, provide your session cookies:
+By default, the server uses anonymous sessions (rate limited). If you have Perplexity Pro, authenticate for unlimited queries:
 
 ```bash
 cp .env.example .env
-# Edit .env with your cookies
+# Add your session cookies
 ```
-
-| Mode | Setup | Access |
-|:-----|:------|:-------|
-| **Anonymous** *(default)* | Nothing needed | Basic queries, Pro limited |
-| **Authenticated** | Session cookies | Full subscription access |
 
 <details>
 <summary><b>How to get cookies</b></summary>
 
-1. Open [perplexity.ai](https://perplexity.ai) and sign in
-2. Open DevTools (`F12`) → Network tab
+1. Sign in at [perplexity.ai](https://perplexity.ai)
+2. Open DevTools (F12) → Network tab
 3. Refresh the page
-4. Right-click first request → Copy → Copy as cURL
-5. Go to [curlconverter.com/python](https://curlconverter.com/python)
-6. Extract `next-auth.session-token` and `next-auth.csrf-token`
+4. Right-click the first request → Copy as cURL
+5. Paste at [curlconverter.com/python](https://curlconverter.com/python)
+6. Copy `next-auth.session-token` and `next-auth.csrf-token` to `.env`
 
 </details>
 
 ---
 
-## ⚠️ Limitations
+## Configuration
 
-- **Unofficial** — May break if Perplexity changes their API
-- **Rate limits** — Standard Perplexity limits apply
-- **Cookie expiry** — ~30 days if using own account
+| Variable | Default | Description |
+|:---------|:--------|:------------|
+| `PERPLEXITY_TIMEOUT` | 900 | Request timeout in seconds (15 min default for deep research) |
+| `PERPLEXITY_MAX_RETRIES` | 2 | Retry attempts on transient failures |
 
 ---
 
-## 📄 License
+## Limitations
+
+- **Unofficial** — Uses Perplexity's web interface, may break if they change it
+- **Rate limits** — Anonymous sessions have query limits
+- **Cookie expiry** — Authenticated sessions last ~30 days
+
+---
+
+## License
 
 MIT

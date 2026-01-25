@@ -1,7 +1,7 @@
 [project]
 name = "perplexity-mcp"
 version = "0.2.0"
-description = "Unofficial Perplexity MCP server using cookies for free Pro access"
+description = "Free Perplexity AI for your coding assistant. No API keys, no subscription."
 requires-python = ">=3.10"
 dependencies = [
     "perplexity-api @ git+https://github.com/helallao/perplexity-ai.git",
