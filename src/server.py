@@ -1,8 +1,9 @@
 """
 MCP Server for Perplexity AI.
 
-Provides unofficial Perplexity access through MCP tools using cookie-based
-authentication. Requires valid Perplexity session cookies.
+Thin MCP wrapper over the perplexity backend with LLM-optimized tool definitions.
+Uses ClientPool with weighted rotation, exponential backoff, and multi-level fallback.
+Shares pool state via pool_state.json for cross-process monitor coordination.
 """
 
 import asyncio
@@ -15,12 +16,11 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import TextContent
 
-from .perplexity_client import PerplexityClient, CookieError, PerplexityClientError
-from .tools import TOOLS, TOOL_METHOD_MAP
+from perplexity.server.app import run_query, get_pool
+from .tools import TOOLS, get_mode_for_tool, TOOL_DEFAULT_SOURCES
 
 # Configuration from environment
 TIMEOUT_SECONDS = int(os.getenv("PERPLEXITY_TIMEOUT", "900"))  # 15 min default for research
-MAX_RETRIES = int(os.getenv("PERPLEXITY_MAX_RETRIES", "2"))
 
 # Configure logging
 logging.basicConfig(
@@ -30,19 +30,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger("perplexity-mcp")
 
+# Valid tool names for dispatch
+_VALID_TOOLS = {t.name for t in TOOLS}
+
 # Create server instance
 server = Server("perplexity-mcp")
-
-# Global client instance (initialized on first use)
-_client: PerplexityClient | None = None
-
-
-def get_client() -> PerplexityClient:
-    """Get or create the Perplexity client."""
-    global _client
-    if _client is None:
-        _client = PerplexityClient()
-    return _client
 
 
 @server.list_tools()
@@ -54,117 +46,131 @@ async def list_tools():
 @server.call_tool()
 async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
     """
-    Handle tool calls.
+    Handle tool calls by delegating to run_query().
 
-    Args:
-        name: Tool name (perplexity_ask, perplexity_research, etc.)
-        arguments: Tool arguments (query, sources, language)
-
-    Returns:
-        List with single TextContent containing the response
+    Before each query:
+    1. Loads shared pool state from pool_state.json (noop if unchanged)
+    2. If state is stale, refreshes rate limits via API (no queries consumed)
+    3. For research: checks if any account has research quota
+    4. Delegates to run_query() which handles rotation and fallback
     """
     logger.info(f"Tool call: {name} with args: {arguments}")
 
-    if name not in TOOL_METHOD_MAP:
+    if name not in _VALID_TOOLS:
         return [TextContent(
             type="text",
-            text=f"Unknown tool: {name}. Available: {list(TOOL_METHOD_MAP.keys())}"
+            text=f"Unknown tool: {name}. Available: {list(_VALID_TOOLS)}"
         )]
 
     # Extract arguments
     query = arguments.get("query", "")
-    sources = arguments.get("sources")
+    model = arguments.get("model")
+    mode = get_mode_for_tool(name, model)
+    sources = arguments.get("sources") or TOOL_DEFAULT_SOURCES.get(name, ["web"])
     language = arguments.get("language", "en-US")
 
-    last_error = None
-    for attempt in range(MAX_RETRIES + 1):
+    # Sync shared pool state before query
+    pool = get_pool()
+    pool.load_state()
+
+    # Lazy rate-limit refresh — if state is stale (>1h), refresh via API (zero quota cost)
+    if pool.is_state_stale(max_age_hours=1):
+        logger.info("Rate limits stale, refreshing via API...")
         try:
-            client = get_client()
-            method_name = TOOL_METHOD_MAP[name]
-            method = getattr(client, method_name)
-
-            # Run synchronous client in thread pool with timeout
-            loop = asyncio.get_event_loop()
-            response = await asyncio.wait_for(
-                loop.run_in_executor(
-                    None,
-                    lambda: method(query=query, sources=sources, language=language)
-                ),
-                timeout=TIMEOUT_SECONDS
-            )
-
-            # Format response
-            result = format_response(response)
-            logger.info(f"Tool {name} completed successfully")
-            return [TextContent(type="text", text=result)]
-
-        except asyncio.TimeoutError:
-            error_msg = (
-                f"Request timed out after {TIMEOUT_SECONDS}s. "
-                f"For research queries, try setting PERPLEXITY_TIMEOUT=300 in your environment."
-            )
-            logger.error(error_msg)
-            return [TextContent(type="text", text=error_msg)]
-
-        except CookieError as e:
-            error_msg = (
-                f"Cookie error: {e}\n\n"
-                "To fix:\n"
-                "1. Login to perplexity.ai\n"
-                "2. Open DevTools (F12) → Network tab\n"
-                "3. Refresh page\n"
-                "4. Right-click first request → Copy as cURL\n"
-                "5. Paste at curlconverter.com/python\n"
-                "6. Copy cookies to .env file"
-            )
-            logger.error(error_msg)
-            return [TextContent(type="text", text=error_msg)]
-
-        except PerplexityClientError as e:
-            last_error = e
-            if attempt < MAX_RETRIES:
-                wait_time = 2 ** attempt  # Exponential backoff: 1s, 2s
-                logger.warning(f"Attempt {attempt + 1} failed: {e}. Retrying in {wait_time}s...")
-                await asyncio.sleep(wait_time)
-                continue
-            error_msg = f"Perplexity error after {MAX_RETRIES + 1} attempts: {e}"
-            logger.error(error_msg)
-            return [TextContent(type="text", text=error_msg)]
-
+            await pool.refresh_all_rate_limits()
         except Exception as e:
-            last_error = e
-            if attempt < MAX_RETRIES and "rate" in str(e).lower():
-                wait_time = 2 ** attempt
-                logger.warning(f"Rate limit hit. Retrying in {wait_time}s...")
-                await asyncio.sleep(wait_time)
-                continue
-            error_msg = f"Unexpected error: {type(e).__name__}: {e}"
-            logger.exception(error_msg)
-            return [TextContent(type="text", text=error_msg)]
+            logger.warning(f"Rate limit refresh failed: {e}")
 
-    # Should not reach here, but just in case
-    return [TextContent(type="text", text=f"Failed after all retries: {last_error}")]
+    # Research quota check — warn early if exhausted
+    if name == "perplexity_research":
+        available = pool.get_accounts_with_research_quota()
+        if not available:
+            return [TextContent(
+                type="text",
+                text=(
+                    "Deep research quota exhausted on all accounts. "
+                    "Use perplexity_ask instead for pro search, or wait for quota reset."
+                )
+            )]
+
+    try:
+        # Run synchronous run_query() in thread pool with timeout
+        loop = asyncio.get_event_loop()
+        result = await asyncio.wait_for(
+            loop.run_in_executor(
+                None,
+                lambda: run_query(
+                    query=query,
+                    mode=mode,
+                    model=model,
+                    sources=sources,
+                    language=language,
+                    fallback_to_auto=True,
+                )
+            ),
+            timeout=TIMEOUT_SECONDS
+        )
+
+        # Format response
+        text = format_result(result)
+        logger.info(f"Tool {name} completed (status={result.get('status')}, mode={mode})")
+        return [TextContent(type="text", text=text)]
+
+    except asyncio.TimeoutError:
+        error_msg = (
+            f"Request timed out after {TIMEOUT_SECONDS}s. "
+            f"For research queries, try setting PERPLEXITY_TIMEOUT higher in your environment."
+        )
+        logger.error(error_msg)
+        return [TextContent(type="text", text=error_msg)]
+
+    except Exception as e:
+        error_msg = f"Unexpected error: {type(e).__name__}: {e}"
+        logger.exception(error_msg)
+        return [TextContent(type="text", text=error_msg)]
 
 
-def format_response(response: dict) -> str:
-    """Format Perplexity response for MCP output."""
+def format_result(result: dict) -> str:
+    """Format run_query() result for MCP output.
+
+    run_query() returns:
+        {"status": "ok", "data": {"answer": ..., "sources": [...]}}
+        {"status": "error", "error_type": ..., "message": ...}
+    """
+    if result.get("status") == "error":
+        error_type = result.get("error_type", "Unknown")
+        message = result.get("message", "Request failed.")
+        return f"Error ({error_type}): {message}"
+
+    data = result.get("data", {})
     parts = []
 
+    # Fallback notice
+    if data.get("fallback"):
+        fallback_mode = data.get("fallback_mode", "auto")
+        original_mode = data.get("original_mode", "unknown")
+        parts.append(
+            f"*Note: Fell back from '{original_mode}' to '{fallback_mode}' mode "
+            f"(Pro quota exhausted).*\n"
+        )
+
     # Main answer
-    if answer := response.get("answer"):
+    if answer := data.get("answer"):
         parts.append(answer)
 
-    # Citations
-    if citations := response.get("citations"):
-        if citations:
-            parts.append("\n\n## Sources")
-            for i, citation in enumerate(citations[:10], 1):  # Limit to 10
-                if isinstance(citation, dict):
-                    url = citation.get("url", "")
-                    title = citation.get("title", url)
-                    parts.append(f"{i}. [{title}]({url})")
-                else:
-                    parts.append(f"{i}. {citation}")
+    # Sources
+    if sources := data.get("sources"):
+        total = len(sources)
+        shown_limit = 30
+
+        parts.append(f"\n\n## Sources referenced ({total} total)")
+        for i, source in enumerate(sources[:shown_limit], 1):
+            url = source.get("url", "")
+            title = source.get("title", url)
+            parts.append(f"{i}. [{title}]({url})")
+
+        if total > shown_limit:
+            parts.append(f"\n*+ {total - shown_limit} more sources*")
 
     return "\n".join(parts) if parts else "No response received."
 
@@ -173,13 +179,18 @@ async def run_server():
     """Run the MCP server."""
     logger.info("Starting Perplexity MCP server...")
 
-    # Validate cookies on startup
+    # Initialize pool on startup to validate config
     try:
-        get_client()
-        logger.info("Cookies validated successfully")
-    except CookieError as e:
-        logger.warning(f"Cookie validation failed: {e}")
-        logger.warning("Server will start but tools will fail until cookies are provided")
+        pool = get_pool()
+        client_count = len(pool.clients)
+        logger.info(f"Initialized pool with {client_count} client(s)")
+
+        # Load shared state from monitor (if available)
+        if pool.load_state():
+            logger.info("Loaded shared pool state from monitor")
+    except Exception as e:
+        logger.warning(f"Pool initialization failed: {e}")
+        logger.warning("Server will start but tools may fail until config is fixed")
 
     async with stdio_server() as (read_stream, write_stream):
         await server.run(

@@ -1,0 +1,125 @@
+"""
+Configuration constants for Perplexity AI API.
+
+This module contains all configurable constants used throughout the library.
+Modify these values to customize behavior without changing core code.
+"""
+
+import os
+from pathlib import Path
+from typing import Dict, Optional
+
+# Load environment variables from .env file
+from dotenv import load_dotenv
+
+# Try to load .env from multiple locations
+_env_locations = [
+    Path.cwd() / ".env",  # Current working directory
+    Path(__file__).parent.parent / ".env",  # Project root
+    Path.home() / ".perplexity" / ".env",  # User home directory
+]
+
+for _env_path in _env_locations:
+    if _env_path.exists():
+        load_dotenv(_env_path)
+        break
+else:
+    # Load from default location if no .env found
+    load_dotenv()
+
+# SOCKS Proxy Configuration
+# Format: socks5://[user[:pass]@]host[:port][#remark]
+# Examples:
+#   socks5://127.0.0.1:1080
+#   socks5://user:pass@127.0.0.1:1080
+#   socks5://user:pass@127.0.0.1:1080#my-proxy
+SOCKS_PROXY: Optional[str] = os.getenv("SOCKS_PROXY", None)
+
+# Token Pool Configuration
+# Path to JSON config file containing multiple tokens for load balancing
+# Format: {"tokens": [{"id": "user1", "csrf_token": "xxx", "session_token": "yyy"}, ...]}
+PPLX_TOKEN_POOL_CONFIG: Optional[str] = os.getenv("PPLX_TOKEN_POOL_CONFIG", None)
+
+# API Configuration
+API_BASE_URL = "https://www.perplexity.ai"
+API_VERSION = "2.18"
+API_TIMEOUT = 30
+
+# Endpoints
+ENDPOINT_AUTH_SESSION = f"{API_BASE_URL}/api/auth/session"
+ENDPOINT_SSE_ASK = f"{API_BASE_URL}/rest/sse/perplexity_ask"
+ENDPOINT_UPLOAD_URL = f"{API_BASE_URL}/rest/uploads/create_upload_url"
+ENDPOINT_SOCKET_IO = f"{API_BASE_URL}/socket.io/"
+ENDPOINT_RATE_LIMIT = f"{API_BASE_URL}/rest/rate-limit"
+ENDPOINT_RATE_LIMIT_STATUS = f"{API_BASE_URL}/rest/rate-limit/status"
+
+# Search Modes
+SEARCH_MODES = ["auto", "pro", "reasoning", "deep research"]
+SEARCH_SOURCES = ["web", "scholar", "social"]
+SEARCH_LANGUAGES = ["en-US", "en-GB", "pt-BR", "es-ES", "fr-FR", "de-DE", "zh-CN"]
+
+# Model Mappings
+MODEL_MAPPINGS: Dict[str, Dict[str, str]] = {
+    "auto": {None: "turbo"},
+    "pro": {
+        None: "pplx_pro",
+        "sonar": "experimental",
+        "gpt-5.2": "gpt52",
+        "claude-4.5-sonnet": "claude45sonnet",
+        "grok-4.1": "grok41nonreasoning",
+    },
+    "reasoning": {
+        None: "pplx_reasoning",
+        "gpt-5.2-thinking": "gpt52_thinking",
+        "claude-4.5-sonnet-thinking": "claude45sonnetthinking",
+        "gemini-3.0-pro": "gemini30pro",
+        "kimi-k2-thinking": "kimik2thinking",
+        "grok-4.1-reasoning": "grok41reasoning",
+    },
+    "deep research": {None: "pplx_alpha"},
+}
+
+# HTTP Headers Template
+DEFAULT_HEADERS = {
+    "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",  # noqa: E501
+    "accept-language": "en-US,en;q=0.9",
+    "cache-control": "max-age=0",
+    "dnt": "1",
+    "priority": "u=0, i",
+    "sec-ch-ua": '"Not;A=Brand";v="24", "Chromium";v="128"',
+    "sec-ch-ua-arch": '"x86"',
+    "sec-ch-ua-bitness": '"64"',
+    "sec-ch-ua-full-version": '"128.0.6613.120"',
+    "sec-ch-ua-full-version-list": '"Not;A=Brand";v="24.0.0.0", "Chromium";v="128.0.6613.120"',  # noqa: E501
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-model": '""',
+    "sec-ch-ua-platform": '"Windows"',
+    "sec-ch-ua-platform-version": '"19.0.0"',
+    "sec-fetch-dest": "document",
+    "sec-fetch-mode": "navigate",
+    "sec-fetch-site": "same-origin",
+    "sec-fetch-user": "?1",
+    "upgrade-insecure-requests": "1",
+    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",  # noqa: E501
+}
+
+# Retry Configuration
+RETRY_MAX_ATTEMPTS = 3
+RETRY_BACKOFF_FACTOR = 2
+RETRY_EXCEPTIONS = (ConnectionError, TimeoutError)
+
+# Logging Configuration
+LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+LOG_LEVEL = "DEBUG"
+LOG_FILE = "perplexity.log"
+
+# Rate Limiting
+RATE_LIMIT_MIN_DELAY = 1.0  # seconds
+RATE_LIMIT_MAX_DELAY = 3.0  # seconds
+RATE_LIMIT_ENABLED = True
+
+# Admin Authentication
+# Set this environment variable to enable admin authentication for pool management
+# If not set, admin operations will be disabled for security
+ADMIN_TOKEN: Optional[str] = os.getenv("PPLX_ADMIN_TOKEN", None)
+

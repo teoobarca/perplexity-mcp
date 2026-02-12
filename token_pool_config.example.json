@@ -1,0 +1,23 @@
+{
+  "monitor": {
+    "enable": false,
+    "interval": 6,
+    "tg_bot_token": null,
+    "tg_chat_id": null
+  },
+  "fallback": {
+    "fallback_to_auto": true
+  },
+  "tokens": [
+    {
+      "id": "main",
+      "csrf_token": "your-csrf-token-here",
+      "session_token": "your-session-token-here"
+    },
+    {
+      "id": "backup",
+      "csrf_token": "another-csrf-token",
+      "session_token": "another-session-token"
+    }
+  ]
+}

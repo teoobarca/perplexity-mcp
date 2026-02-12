@@ -1,5 +1,15 @@
-# Environment files with secrets
+# Secrets
 .env
+accounts.json
+token_pool_config.json
+pool_state.json
+
+# Frontend build artifacts
+perplexity/server/web/node_modules/
+perplexity/server/web/dist/
+
+# Logs
+perplexity.log
 
 # Python
 __pycache__/

@@ -1,13 +1,34 @@
 """
 MCP Tool definitions for Perplexity.
 
-Tool descriptions are optimized for LLM agents - they explain:
-1. What the tool does and when to use it
-2. That Perplexity is an AI model (not a search engine) that benefits from context
-3. Examples of good queries in parameter descriptions
+Two tools:
+- perplexity_ask: Pro search + reasoning (auto-detected from model name)
+- perplexity_research: Deep research mode
+
+Tool descriptions are optimized for LLM agents.
 """
 
 from mcp.types import Tool
+
+# Reasoning model keywords — if model name contains these, use reasoning mode
+_REASONING_KEYWORDS = ("thinking", "reasoning")
+
+
+def get_mode_for_tool(name: str, model: str = None) -> str:
+    """Determine the Perplexity search mode from tool name and model."""
+    if name == "perplexity_research":
+        return "deep research"
+    # perplexity_ask — auto-detect reasoning mode from model name
+    if model and any(kw in model for kw in _REASONING_KEYWORDS):
+        return "reasoning"
+    return "pro"
+
+
+# Default sources per tool
+TOOL_DEFAULT_SOURCES = {
+    "perplexity_ask": ["web"],
+    "perplexity_research": ["web", "scholar"],
+}
 
 # Tool definitions for MCP server
 TOOLS = [
@@ -37,6 +58,15 @@ TOOLS = [
                 "language": {
                     "type": "string",
                     "description": "ISO 639 language code. Default: 'en-US'"
+                },
+                "model": {
+                    "type": "string",
+                    "description": (
+                        "Optional model selection. Available: sonar, gpt-5.2, claude-4.5-sonnet, grok-4.1, "
+                        "gpt-5.2-thinking, claude-4.5-sonnet-thinking, gemini-3.0-pro, kimi-k2-thinking, "
+                        "grok-4.1-reasoning. Leave empty for default. "
+                        "Models with 'thinking'/'reasoning' in the name automatically use reasoning mode."
+                    )
                 }
             },
             "required": ["query"]
@@ -75,72 +105,4 @@ TOOLS = [
             "required": ["query"]
         }
     ),
-    Tool(
-        name="perplexity_reason",
-        description=(
-            "Reasoning-focused AI for analytical questions requiring step-by-step thinking. "
-            "Best for comparisons, trade-off analysis, and decisions. Provide your specific "
-            "situation and requirements - the model reasons through options systematically."
-        ),
-        inputSchema={
-            "type": "object",
-            "properties": {
-                "query": {
-                    "type": "string",
-                    "description": (
-                        "Analytical question with your specific context. Include constraints, "
-                        "priorities, and what you're optimizing for. Example: 'Should I use "
-                        "Prisma or Drizzle for a new Next.js project? Need type-safety, "
-                        "good DX, and must work with Planetscale MySQL.'"
-                    )
-                },
-                "sources": {
-                    "type": "array",
-                    "items": {"type": "string", "enum": ["web", "scholar", "social"]},
-                    "description": "Information sources. Default: ['web']"
-                },
-                "language": {
-                    "type": "string",
-                    "description": "ISO 639 language code. Default: 'en-US'"
-                }
-            },
-            "required": ["query"]
-        }
-    ),
-    Tool(
-        name="perplexity_search",
-        description=(
-            "Quick fact lookup for simple questions. Use perplexity_ask for tech questions "
-            "or perplexity_reason for comparisons. Returns brief answers with citations."
-        ),
-        inputSchema={
-            "type": "object",
-            "properties": {
-                "query": {
-                    "type": "string",
-                    "description": (
-                        "Simple factual question. Example: 'What is the latest stable version of React?'"
-                    )
-                },
-                "sources": {
-                    "type": "array",
-                    "items": {"type": "string", "enum": ["web", "scholar", "social"]},
-                    "description": "Information sources. Default: ['web']"
-                },
-                "language": {
-                    "type": "string",
-                    "description": "ISO 639 language code. Default: 'en-US'"
-                }
-            },
-            "required": ["query"]
-        }
-    )
 ]
-
-# Map tool names to client methods
-TOOL_METHOD_MAP = {
-    "perplexity_ask": "ask",
-    "perplexity_research": "research",
-    "perplexity_reason": "reason",
-    "perplexity_search": "search"
-}

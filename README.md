@@ -1,43 +1,49 @@
-# Perplexity MCP Server
+<p align="center">
+  <img src="https://img.shields.io/badge/Perplexity-MCP_Server-1a1a2e?style=for-the-badge&labelColor=09090b" alt="Perplexity MCP Server" />
+</p>
 
-**Free Perplexity AI for your coding assistant. No API keys, no account needed.**
+<p align="center">
+  <strong>Free Perplexity AI for your coding assistant. No API keys needed.</strong>
+</p>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![MCP](https://img.shields.io/badge/MCP-Compatible-green.svg)](https://modelcontextprotocol.io/)
-
----
-
-## Why Perplexity?
-
-Most AI coding assistants have some form of web search, but it's basic — you get links and snippets, not answers.
-
-[Perplexity](https://perplexity.ai) is an AI research assistant that actually synthesizes information:
-
-- Combines multiple sources into coherent answers
-- Cites everything so you can verify
-- Has specialized modes for reasoning and deep research (10-30+ citations)
-
-This MCP server connects your assistant to Perplexity's web interface — no API keys, no subscription, no cost.
+<p align="center">
+  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-14b8a6?style=flat-square" alt="MIT License" /></a>
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/Python-3.10+-3b82f6?style=flat-square" alt="Python 3.10+" /></a>
+  <a href="https://modelcontextprotocol.io/"><img src="https://img.shields.io/badge/MCP-Compatible-22c55e?style=flat-square" alt="MCP Compatible" /></a>
+</p>
 
 ---
 
-## What You Get
+## What is this?
 
-Four specialized tools, each optimized for different tasks:
+An MCP server that gives your AI coding assistant access to [Perplexity](https://perplexity.ai) — an AI research engine that synthesizes answers from multiple sources with citations.
 
-| Tool | Use case | Example |
-|:-----|:---------|:--------|
-| `perplexity_search` | Quick facts | "Latest stable version of Node.js?" |
-| `perplexity_ask` | Technical questions | "How to set up OAuth in Next.js 15 App Router?" |
-| `perplexity_reason` | Decisions & trade-offs | "Prisma vs Drizzle for serverless Postgres?" |
-| `perplexity_research` | Deep analysis (10-30+ citations) | "Best practices for LLM API key rotation in production" |
+**What you get vs. built-in web search:**
 
-**vs. built-in search:** Your assistant asks "What's new in React 19?" — built-in search returns 10 blue links. Perplexity returns a synthesized answer with specific breaking changes, migration steps, and citations.
+| | Built-in search | Perplexity MCP |
+|:---|:---|:---|
+| **Quick questions** | 10 blue links | Synthesized answer with sources |
+| **Technical docs** | Outdated snippets | Current, contextual explanations |
+| **Deep research** | Manual reading | 10-30+ citation reports |
+| **Reasoning** | N/A | Multi-model reasoning (GPT, Claude, Grok) |
+
+Includes a **token pool admin panel** for managing multiple sessions, monitoring quotas, and auto-fallback — useful if you run this for a team or want zero-downtime rotation.
 
 ---
 
-## Installation
+## Tools
+
+| Tool | Mode | Best for |
+|:-----|:-----|:---------|
+| `perplexity_ask` | Pro search | Technical questions, docs, how-to guides |
+| `perplexity_ask` | Reasoning* | Comparisons, trade-offs, decisions |
+| `perplexity_research` | Deep research | Architecture analysis, thorough investigations (10-30+ citations) |
+
+\* *Reasoning mode is auto-detected when using a model with "thinking" or "reasoning" in the name.*
+
+---
+
+## Quick Start
 
 ```bash
 git clone https://github.com/teoobarca/perplexity-mcp.git
@@ -68,45 +74,12 @@ Settings → MCP → Add new server:
 </details>
 
 <details>
-<summary><b>Windsurf</b></summary>
-
-Add to your MCP config:
-```json
-{
-  "mcpServers": {
-    "perplexity": {
-      "command": "uv",
-      "args": ["--directory", "/path/to/perplexity-mcp", "run", "perplexity-mcp"]
-    }
-  }
-}
-```
-</details>
-
-<details>
-<summary><b>VS Code + Copilot</b></summary>
-
-Add to `.vscode/mcp.json`:
-```json
-{
-  "servers": {
-    "perplexity": {
-      "command": "uv",
-      "args": ["--directory", "/path/to/perplexity-mcp", "run", "perplexity-mcp"]
-    }
-  }
-}
-```
-</details>
-
-<details>
-<summary><b>Other MCP clients</b></summary>
+<summary><b>Windsurf / VS Code / Other MCP clients</b></summary>
 
 ```json
 {
   "mcpServers": {
     "perplexity": {
-      "type": "stdio",
       "command": "uv",
       "args": ["--directory", "/path/to/perplexity-mcp", "run", "perplexity-mcp"]
     }
@@ -115,40 +88,80 @@ Add to `.vscode/mcp.json`:
 ```
 </details>
 
-**Done.** Free Perplexity access, no API keys, no account required.
+**Done.** Works out of the box with anonymous sessions (rate limited). Add your tokens for unlimited access — see [Authentication](#authentication) below.
 
 ---
 
-## How It Works
+## Admin Panel
 
-This server uses [helallao/perplexity-ai](https://github.com/helallao/perplexity-ai) to connect to Perplexity's web interface — the same way you'd use perplexity.ai in your browser, but automated.
-
-```
-Your AI Assistant → MCP Server → Perplexity → Synthesized answer with citations
-```
-
----
-
-## Optional: Authenticate for Unlimited Access
-
-By default, the server uses anonymous sessions (rate limited). If you have Perplexity Pro, authenticate for unlimited queries:
+A built-in web dashboard for managing token pools, monitoring quotas, and viewing logs.
 
 ```bash
-cp .env.example .env
-# Add your session cookies
+perplexity-server
 ```
 
-<details>
-<summary><b>How to get cookies</b></summary>
+Opens automatically at `http://localhost:8123/admin/`.
+
+**Features:**
+- Real-time token pool status with usage quotas (Pro, Research, Agentic)
+- Health monitoring with zero-cost rate-limit API checks
+- Token management — add, remove, enable/disable, import/export
+- Auto-fallback from Pro → free model when quota exhausted
+- Telegram notifications on state changes
+- Log viewer with level filtering and search
+
+<!-- Screenshot placeholder — replace with actual screenshot -->
+<!-- ![Admin Panel](docs/admin-panel.png) -->
+
+---
+
+## Authentication
+
+By default, the server uses anonymous Perplexity sessions. For unlimited queries, add your Perplexity Pro session tokens.
+
+### Single token (MCP server)
+
+```bash
+cp token_pool_config.example.json token_pool_config.json
+# Edit and add your tokens
+```
+
+### How to get tokens
 
 1. Sign in at [perplexity.ai](https://perplexity.ai)
-2. Open DevTools (F12) → Network tab
-3. Refresh the page
-4. Right-click the first request → Copy as cURL
-5. Paste at [curlconverter.com/python](https://curlconverter.com/python)
-6. Copy `next-auth.session-token` and `next-auth.csrf-token` to `.env`
+2. Open DevTools (F12) → Application tab → Cookies
+3. Copy `next-auth.session-token` and `next-auth.csrf-token`
+4. Add them to `token_pool_config.json`:
 
-</details>
+```json
+{
+  "tokens": [
+    {
+      "id": "main",
+      "csrf_token": "your-csrf-token",
+      "session_token": "your-session-token"
+    }
+  ]
+}
+```
+
+### Multiple tokens (pool)
+
+Add multiple tokens for round-robin rotation with automatic failover:
+
+```json
+{
+  "monitor": {
+    "enable": true,
+    "interval": 6
+  },
+  "fallback": { "fallback_to_auto": true },
+  "tokens": [
+    { "id": "account-1", "csrf_token": "...", "session_token": "..." },
+    { "id": "account-2", "csrf_token": "...", "session_token": "..." }
+  ]
+}
+```
 
 ---
 
@@ -156,16 +169,34 @@ cp .env.example .env
 
 | Variable | Default | Description |
 |:---------|:--------|:------------|
-| `PERPLEXITY_TIMEOUT` | 900 | Request timeout in seconds (15 min default for deep research) |
-| `PERPLEXITY_MAX_RETRIES` | 2 | Retry attempts on transient failures |
+| `PERPLEXITY_TIMEOUT` | `900` | Request timeout in seconds (15 min for deep research) |
+| `PERPLEXITY_MAX_RETRIES` | `2` | Retry attempts on transient failures |
+| `PPLX_ADMIN_TOKEN` | — | Admin token for the web dashboard |
+
+---
+
+## How It Works
+
+```
+Your AI Assistant ──MCP──▸ perplexity-mcp ──▸ Perplexity ──▸ Answer + Citations
+                                │
+                          Client Pool (round-robin, backoff, fallback)
+                                │
+                          perplexity-server ──▸ Admin Panel :8123/admin/
+```
+
+- **MCP server** (`perplexity-mcp`) — stdio transport, connects to Claude Code / Cursor / etc.
+- **Client pool** — round-robin rotation, exponential backoff on failures, automatic Pro → free fallback
+- **Monitor** — periodic health checks via rate-limit API (zero queries consumed), detects token states
+- **Admin server** (`perplexity-server`) — Starlette + React dashboard on port 8123
 
 ---
 
 ## Limitations
 
-- **Unofficial** — Uses Perplexity's web interface, may break if they change it
-- **Rate limits** — Anonymous sessions have query limits
-- **Cookie expiry** — Authenticated sessions last ~30 days
+- **Unofficial** — uses Perplexity's web interface, may break if they change it
+- **Rate limits** — anonymous sessions have query limits
+- **Cookie expiry** — session tokens last ~30 days
 
 ---
 
