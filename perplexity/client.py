@@ -43,7 +43,7 @@ class Client:
     A client for interacting with the Perplexity AI API.
     """
 
-    def __init__(self, cookies={}):
+    def __init__(self, cookies=None):
         # Build proxy configuration from SOCKS_PROXY env var
         # Format: socks5://[user[:pass]@]host[:port][#remark]
         proxy_url = None
@@ -51,8 +51,11 @@ class Client:
             # Remove the remark part (after #) if present
             proxy_url = SOCKS_PROXY.split("#")[0] if "#" in SOCKS_PROXY else SOCKS_PROXY
 
+        if cookies is None:
+            cookies = {}
+
         # Store original cookies for export
-        self._cookies = cookies.copy() if cookies else {}
+        self._cookies = cookies.copy()
 
         # Initialize an HTTP session with default headers and optional cookies
         self.session = requests.Session(
@@ -152,8 +155,8 @@ class Client:
         query,
         mode="auto",
         model=None,
-        sources=["web"],
-        files={},
+        sources=None,
+        files=None,
         stream=False,
         language="en-US",
         follow_up=None,
@@ -173,6 +176,11 @@ class Client:
         - follow_up: Information for follow-up queries.
         - incognito: Whether to enable incognito mode.
         """
+        if sources is None:
+            sources = ["web"]
+        if files is None:
+            files = {}
+
         # Validate input parameters
         assert mode in [
             "auto",
