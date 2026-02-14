@@ -463,13 +463,6 @@ class ClientPool:
                 if mode:
                     needs_verify = wrapper.decrement_quota(mode)
 
-        # After a successful request, persist the latest cookies from the session
-        if self._config_path:
-            logger.debug(f"[{client_id}] Request successful, triggering config save to persist cookies")
-            self._save_config()
-        else:
-            logger.debug(f"[{client_id}] Request successful, but no config path set, skipping save")
-
         # Persist state (with updated quotas)
         if mode:
             self.save_state(writer="quota_decrement")
@@ -1167,8 +1160,18 @@ class ClientPool:
                     "session_token": session,
                 })
 
-            with open(self._config_path, "w", encoding="utf-8") as f:
-                json.dump(config, f, ensure_ascii=False, indent=2)
+            dir_name = os.path.dirname(self._config_path) or "."
+            fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix=".tmp")
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    json.dump(config, f, ensure_ascii=False, indent=2)
+                os.replace(tmp_path, self._config_path)
+            except Exception:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+                raise
 
             logger.info(f"Config saved to {self._config_path}")
         except Exception as e:
