@@ -141,6 +141,129 @@ class TestClientWrapper:
         assert status["next_available_at"] is not None
         assert "T" in status["next_available_at"]  # ISO8601 format
 
+    def test_decrement_quota_pro_mode(self):
+        """Test that decrement_quota decreases pro counters for pro mode."""
+        from perplexity.server.client_pool import ClientWrapper
+
+        mock_client = MagicMock()
+        wrapper = ClientWrapper(mock_client, "test-id")
+        wrapper.rate_limits = {
+            "pro_remaining": 5,
+            "modes": {
+                "pro_search": {"available": True, "remaining": 5, "kind": "daily"},
+            },
+        }
+
+        needs_verify = wrapper.decrement_quota("pro")
+
+        assert wrapper.rate_limits["pro_remaining"] == 4
+        assert wrapper.rate_limits["modes"]["pro_search"]["remaining"] == 4
+        assert needs_verify is False
+
+    def test_decrement_quota_pro_reaches_zero(self):
+        """Test that decrement_quota returns True when pro counter hits 0."""
+        from perplexity.server.client_pool import ClientWrapper
+
+        mock_client = MagicMock()
+        wrapper = ClientWrapper(mock_client, "test-id")
+        wrapper.rate_limits = {
+            "pro_remaining": 1,
+            "modes": {
+                "pro_search": {"available": True, "remaining": 1, "kind": "daily"},
+            },
+        }
+
+        needs_verify = wrapper.decrement_quota("pro")
+
+        assert wrapper.rate_limits["pro_remaining"] == 0
+        assert wrapper.rate_limits["modes"]["pro_search"]["remaining"] == 0
+        assert needs_verify is True
+
+    def test_decrement_quota_research_mode(self):
+        """Test that decrement_quota decreases research counter for deep research mode."""
+        from perplexity.server.client_pool import ClientWrapper
+
+        mock_client = MagicMock()
+        wrapper = ClientWrapper(mock_client, "test-id")
+        wrapper.rate_limits = {
+            "pro_remaining": 10,
+            "modes": {
+                "research": {"available": True, "remaining": 3, "kind": "daily"},
+            },
+        }
+
+        needs_verify = wrapper.decrement_quota("deep research")
+
+        assert wrapper.rate_limits["modes"]["research"]["remaining"] == 2
+        assert needs_verify is False
+
+    def test_decrement_quota_research_reaches_zero(self):
+        """Test that decrement_quota returns True when research counter hits 0."""
+        from perplexity.server.client_pool import ClientWrapper
+
+        mock_client = MagicMock()
+        wrapper = ClientWrapper(mock_client, "test-id")
+        wrapper.rate_limits = {
+            "pro_remaining": 10,
+            "modes": {
+                "research": {"available": True, "remaining": 1, "kind": "daily"},
+            },
+        }
+
+        needs_verify = wrapper.decrement_quota("deep research")
+
+        assert wrapper.rate_limits["modes"]["research"]["remaining"] == 0
+        assert needs_verify is True
+
+    def test_decrement_quota_reasoning_mode(self):
+        """Test that reasoning mode decrements pro counters (same as pro)."""
+        from perplexity.server.client_pool import ClientWrapper
+
+        mock_client = MagicMock()
+        wrapper = ClientWrapper(mock_client, "test-id")
+        wrapper.rate_limits = {
+            "pro_remaining": 3,
+            "modes": {
+                "pro_search": {"available": True, "remaining": 3, "kind": "daily"},
+            },
+        }
+
+        needs_verify = wrapper.decrement_quota("reasoning")
+
+        assert wrapper.rate_limits["pro_remaining"] == 2
+        assert wrapper.rate_limits["modes"]["pro_search"]["remaining"] == 2
+        assert needs_verify is False
+
+    def test_decrement_quota_no_rate_limits(self):
+        """Test that decrement_quota handles missing rate_limits gracefully."""
+        from perplexity.server.client_pool import ClientWrapper
+
+        mock_client = MagicMock()
+        wrapper = ClientWrapper(mock_client, "test-id")
+        wrapper.rate_limits = {}
+
+        needs_verify = wrapper.decrement_quota("pro")
+
+        assert needs_verify is False
+
+    def test_decrement_quota_none_remaining(self):
+        """Test that decrement_quota handles None remaining (untracked) gracefully."""
+        from perplexity.server.client_pool import ClientWrapper
+
+        mock_client = MagicMock()
+        wrapper = ClientWrapper(mock_client, "test-id")
+        wrapper.rate_limits = {
+            "pro_remaining": None,
+            "modes": {
+                "pro_search": {"available": True, "remaining": None, "kind": None},
+            },
+        }
+
+        needs_verify = wrapper.decrement_quota("pro")
+
+        assert wrapper.rate_limits["pro_remaining"] is None
+        assert needs_verify is False
+
 
 class TestClientPool:
     """Tests for ClientPool class."""

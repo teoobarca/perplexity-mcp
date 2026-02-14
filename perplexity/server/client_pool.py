@@ -67,6 +67,43 @@ class ClientWrapper:
         """Mark that a pro request failed for this client."""
         self.pro_fail_count += 1
 
+    def decrement_quota(self, mode: str) -> bool:
+        """Locally decrement the quota counter for the given mode.
+
+        Returns True if any counter reached 0 (needs API verification).
+        """
+        if not self.rate_limits:
+            return False
+
+        needs_verify = False
+        modes = self.rate_limits.get("modes", {})
+
+        if mode in ("pro", "reasoning"):
+            # Decrement pro_remaining
+            pro_rem = self.rate_limits.get("pro_remaining")
+            if pro_rem is not None and pro_rem > 0:
+                self.rate_limits["pro_remaining"] = pro_rem - 1
+                if self.rate_limits["pro_remaining"] == 0:
+                    needs_verify = True
+
+            # Decrement modes.pro_search.remaining
+            pro_search = modes.get("pro_search", {})
+            ps_rem = pro_search.get("remaining")
+            if ps_rem is not None and ps_rem > 0:
+                pro_search["remaining"] = ps_rem - 1
+                if pro_search["remaining"] == 0:
+                    needs_verify = True
+
+        elif mode == "deep research":
+            research = modes.get("research", {})
+            r_rem = research.get("remaining")
+            if r_rem is not None and r_rem > 0:
+                research["remaining"] = r_rem - 1
+                if research["remaining"] == 0:
+                    needs_verify = True
+
+        return needs_verify
+
     def get_status(self) -> Dict[str, Any]:
         """Get the current status of this client."""
         available = self.is_available()
