@@ -215,7 +215,7 @@ def run_query(
             )
 
             # Success
-            pool.mark_client_success(client_id)
+            pool.mark_client_success(client_id, mode=mode)
             clean_result = extract_clean_result(response)
             logger.debug(f"[{client_id}] Query succeeded with Pro mode")
             return {"status": "ok", "data": clean_result}
@@ -280,7 +280,7 @@ def run_query(
             )
 
             if response and "answer" in response:
-                pool.mark_client_success(best_client_id)
+                pool.mark_client_success(best_client_id, mode="auto")
                 clean_result = extract_clean_result(response)
                 clean_result["fallback"] = True
                 clean_result["fallback_mode"] = "auto"

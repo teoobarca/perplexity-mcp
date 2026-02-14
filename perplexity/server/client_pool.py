@@ -443,12 +443,19 @@ class ClientPool:
             )
             return soonest_wrapper.id, None
 
-    def mark_client_success(self, client_id: str) -> None:
-        """Mark a client as successful after a request."""
+    def mark_client_success(self, client_id: str, mode: str = "") -> None:
+        """Mark a client as successful after a request.
+
+        Decrements quota locally based on mode. If quota reaches 0,
+        schedules an async rate-limit refresh to verify.
+        """
+        needs_verify = False
         with self._lock:
             wrapper = self.clients.get(client_id)
             if wrapper:
                 wrapper.mark_success()
+                if mode:
+                    needs_verify = wrapper.decrement_quota(mode)
 
         # After a successful request, persist the latest cookies from the session
         if self._config_path:
@@ -456,6 +463,49 @@ class ClientPool:
             self._save_config()
         else:
             logger.debug(f"[{client_id}] Request successful, but no config path set, skipping save")
+
+        # Persist state (with updated quotas)
+        if mode:
+            self.save_state(writer="quota_decrement")
+
+        # If quota hit 0, schedule async verification
+        if needs_verify:
+            logger.info(f"[{client_id}] Quota reached 0 for mode={mode}, scheduling API verification")
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(self._verify_client_quota(client_id))
+            except RuntimeError:
+                logger.debug(f"[{client_id}] No running event loop, skipping async verification")
+
+    async def _verify_client_quota(self, client_id: str) -> None:
+        """Verify a client's quota by fetching rate limits from API."""
+        try:
+            with self._lock:
+                wrapper = self.clients.get(client_id)
+                if not wrapper:
+                    return
+
+            logger.info(f"[{client_id}] Verifying quota via API...")
+            result = await wrapper.refresh_rate_limits()
+
+            # Update state based on refreshed limits
+            with self._lock:
+                pro_remaining = result.get("pro_remaining")
+                modes = result.get("modes", {})
+                pro_search = modes.get("pro_search", {})
+
+                if pro_search.get("available") and (pro_remaining is None or pro_remaining > 0):
+                    wrapper.state = "normal"
+                elif pro_remaining is not None and pro_remaining == 0:
+                    wrapper.state = "downgrade"
+
+                wrapper.last_check = time.time()
+
+            self.save_state(writer="quota_verify")
+            logger.info(f"[{client_id}] Quota verification complete: pro_remaining={result.get('pro_remaining')}")
+
+        except Exception as e:
+            logger.warning(f"[{client_id}] Quota verification failed: {e}")
 
     def mark_client_failure(self, client_id: str) -> None:
         """Mark a client as failed after a request."""
