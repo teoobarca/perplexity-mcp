@@ -207,6 +207,16 @@ def run_query(
         attempted_clients.add(client_id)
         logger.debug(f"[{client_id}] Selected client for Pro mode, state={client_state}")
 
+        # Pre-request quota check for deep research
+        if mode == "deep research":
+            wrapper = pool.clients.get(client_id)
+            if wrapper and wrapper.rate_limits:
+                research = wrapper.rate_limits.get("modes", {}).get("research", {})
+                if research.get("available") is False or research.get("remaining") == 0:
+                    logger.debug(f"[{client_id}] No research quota, skipping for deep research")
+                    pool.mark_client_pro_failure(client_id)
+                    continue
+
         try:
             # Stateful Validation
             validate_search_params(mode, model, chosen_sources, own_account=client.own)

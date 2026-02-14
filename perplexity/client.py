@@ -151,6 +151,15 @@ class Client:
 
         return result
 
+    def _validate_research_response(self, response: dict) -> None:
+        """Verify the response is actually a deep research result, not a silent downgrade."""
+        text = response.get("text")
+        if isinstance(text, str) or text is None:
+            raise Exception(
+                "Deep research was silently downgraded to a regular search by the server. "
+                "This account may not have research quota remaining."
+            )
+
     def search(
         self,
         query,
@@ -374,4 +383,7 @@ class Client:
                     continue
 
             elif content.startswith("event: end_of_stream\r\n"):
-                return chunks[-1] if chunks else {}
+                result = chunks[-1] if chunks else {}
+                if mode == "deep research" and result:
+                    self._validate_research_response(result)
+                return result
