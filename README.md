@@ -3,7 +3,7 @@
 <!-- Hero -->
 <br />
 
-<img src="docs/images/logo.svg" alt="Logo" width="120" />
+<img src="docs/images/logo.svg" alt="Logo" width="160" />
 
 <br />
 
@@ -21,8 +21,6 @@
 <a href="https://modelcontextprotocol.io/"><img src="https://img.shields.io/badge/MCP-Compatible-22c55e?style=flat-square&labelColor=18181b" alt="MCP Compatible" /></a>&nbsp;
 <img src="https://img.shields.io/badge/Token_Pool-Multi_Account-f59e0b?style=flat-square&labelColor=18181b" alt="Token Pool" />&nbsp;
 <img src="https://img.shields.io/badge/Admin_Panel-React-8b5cf6?style=flat-square&labelColor=18181b" alt="Admin Panel" />
-
-<br />
 
 [Features](#-features) · [Quick Start](#-quick-start) · [Admin Panel](#%EF%B8%8F-admin-panel) · [Configuration](#%EF%B8%8F-configuration) · [Architecture](#%EF%B8%8F-architecture)
 
