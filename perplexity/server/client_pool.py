@@ -1153,8 +1153,9 @@ class ClientPool:
 
             for client_id, wrapper in clients_copy:
                 client = wrapper.client
-                # Use client.cookies property to get the latest session cookies
-                cookies = client.cookies
+                # Use _cookies (original input cookies), not session jar
+                # Session jar may transform cookie names after HTTP requests
+                cookies = client._cookies if hasattr(client, '_cookies') else {}
 
                 csrf = cookies.get("next-auth.csrf-token", "")
                 session = cookies.get("__Secure-next-auth.session-token", "")
