@@ -34,12 +34,40 @@ class ClientWrapper:
         self.fail_count = 0
         self.available_after: float = 0
         self.request_count = 0
-        self.pro_fail_count = 0  # Track pro-specific failures
         self.enabled = True  # Whether this client is enabled for use
-        self.state = "unknown"  # Token state: "normal", "offline", "downgrade", "unknown"
+        self.session_valid: Optional[bool] = None  # None=unchecked, True=valid, False=invalid
         self.last_check: Optional[float] = None  # Last health check timestamp
         self.rate_limits: dict = {}  # Cached rate-limit data from API
         self.rate_limits_updated: float = 0  # When rate_limits were last fetched
+
+    @property
+    def state(self) -> str:
+        """Computed state for API/frontend display. Single source of truth."""
+        if self.session_valid is False:
+            return "offline"
+        if self.session_valid is None:
+            return "unknown"
+        if self.rate_limits.get("pro_remaining", 1) > 0:
+            return "normal"
+        return "exhausted"
+
+    def has_quota(self, mode: str) -> bool:
+        """Check if this client has quota for the given mode.
+
+        Returns True if quota is available or unknown (assume yes).
+        """
+        if self.session_valid is False:
+            return False
+        if mode in ("pro", "reasoning"):
+            pro_rem = self.rate_limits.get("pro_remaining")
+            return pro_rem is None or pro_rem > 0
+        if mode == "deep research":
+            research = self.rate_limits.get("modes", {}).get("research", {})
+            if research.get("available") is False:
+                return False
+            rem = research.get("remaining")
+            return rem is None or rem > 0
+        return True  # auto mode always ok
 
     def is_available(self) -> bool:
         """Check if the client is currently available (enabled and not in backoff)."""
@@ -62,10 +90,6 @@ class ClientWrapper:
         self.fail_count = 0
         self.available_after = 0
         self.request_count += 1
-
-    def mark_pro_failure(self) -> None:
-        """Mark that a pro request failed for this client."""
-        self.pro_fail_count += 1
 
     def decrement_quota(self, mode: str) -> bool:
         """Locally decrement the quota counter for the given mode.
@@ -128,7 +152,6 @@ class ClientWrapper:
             "next_available_at": next_available_at,
             "last_check_at": last_check_at,
             "request_count": self.request_count,
-            "pro_fail_count": self.pro_fail_count,
             "rate_limits": self.rate_limits,
         }
 
@@ -152,12 +175,13 @@ class ClientPool:
     Supports periodic monitoring for automatic token health verification.
     """
 
-    def __init__(self, config_path: Optional[str] = None):
+    def __init__(self, config_path: Optional[str] = None, config_writable: bool = True):
         self.clients: Dict[str, ClientWrapper] = {}
         self._rotation_order: List[str] = []
         self._index = 0
         self._lock = threading.Lock()
         self._mode = "anonymous"
+        self._config_writable = config_writable
 
         # Monitor configuration
         self._monitor_config: Dict[str, Any] = {
@@ -413,13 +437,14 @@ class ClientPool:
             if not wrapper:
                 return {"status": "error", "message": f"Client '{client_id}' not found"}
             wrapper.fail_count = 0
-            wrapper.pro_fail_count = 0
             wrapper.available_after = 0
             return {"status": "ok", "message": f"Client '{client_id}' reset successfully"}
 
-    def get_client(self) -> Tuple[Optional[str], Optional[Client]]:
+    def get_client(self, mode: str = "auto") -> Tuple[Optional[str], Optional[Client]]:
         """
         Get the next available client using round-robin selection.
+
+        Filters by: enabled, not in backoff, and has_quota(mode).
 
         Returns:
             Tuple of (client_id, Client) or (None, None) if no clients available
@@ -428,26 +453,37 @@ class ClientPool:
             if not self.clients:
                 return None, None
 
-            # Round-robin among available clients
+            # Round-robin among clients that are available AND have quota for this mode
+            eligible_ids = {
+                client_id
+                for client_id in self._rotation_order
+                if self.clients[client_id].is_available()
+                and self.clients[client_id].has_quota(mode)
+            }
+
+            if eligible_ids:
+                for _ in range(len(self._rotation_order)):
+                    client_id = self._rotation_order[self._index]
+                    self._index = (self._index + 1) % len(self._rotation_order)
+
+                    if client_id in eligible_ids:
+                        return client_id, self.clients[client_id].client
+
+            # No eligible clients - check if any are available (just no quota)
             available_ids = {
                 client_id
                 for client_id in self._rotation_order
                 if self.clients[client_id].is_available()
             }
+            if not available_ids:
+                # All in backoff - return soonest available with client=None
+                soonest_wrapper = min(
+                    self.clients.values(), key=lambda w: w.available_after
+                )
+                return soonest_wrapper.id, None
 
-            if available_ids:
-                for _ in range(len(self._rotation_order)):
-                    client_id = self._rotation_order[self._index]
-                    self._index = (self._index + 1) % len(self._rotation_order)
-
-                    if client_id in available_ids:
-                        return client_id, self.clients[client_id].client
-
-            # No available clients - return the one that will be available soonest
-            soonest_wrapper = min(
-                self.clients.values(), key=lambda w: w.available_after
-            )
-            return soonest_wrapper.id, None
+            # Clients available but no quota for this mode
+            return None, None
 
     def mark_client_success(self, client_id: str, mode: str = "") -> None:
         """Mark a client as successful after a request.
@@ -487,17 +523,7 @@ class ClientPool:
             logger.info(f"[{client_id}] Verifying quota via API...")
             result = await wrapper.refresh_rate_limits()
 
-            # Update state based on refreshed limits
             with self._lock:
-                pro_remaining = result.get("pro_remaining")
-                modes = result.get("modes", {})
-                pro_search = modes.get("pro_search", {})
-
-                if pro_search.get("available") and (pro_remaining is None or pro_remaining > 0):
-                    wrapper.state = "normal"
-                elif pro_remaining is not None and pro_remaining == 0:
-                    wrapper.state = "downgrade"
-
                 wrapper.last_check = time.time()
 
             self.save_state(writer="quota_verify")
@@ -512,13 +538,6 @@ class ClientPool:
             wrapper = self.clients.get(client_id)
             if wrapper:
                 wrapper.mark_failure()
-
-    def mark_client_pro_failure(self, client_id: str) -> None:
-        """Mark a client as failed for a pro request."""
-        with self._lock:
-            wrapper = self.clients.get(client_id)
-            if wrapper:
-                wrapper.mark_pro_failure()
 
     def get_status(self) -> Dict[str, Any]:
         """
@@ -573,22 +592,6 @@ class ClientPool:
         # HTTP call outside lock to avoid blocking pool operations
         return {"status": "ok", "data": wrapper.get_user_info()}
 
-    def get_client_state(self, client_id: str) -> str:
-        """
-        Get the current state of a specific client.
-
-        Args:
-            client_id: The ID of the client
-
-        Returns:
-            Client state: "normal", "downgrade", "offline", or "unknown"
-        """
-        with self._lock:
-            wrapper = self.clients.get(client_id)
-            if not wrapper:
-                return "unknown"
-            return wrapper.state
-
     def get_all_clients_user_info(self) -> Dict[str, Any]:
         """
         Get user session information for all clients.
@@ -637,28 +640,8 @@ class ClientPool:
             self.stop_monitor()
             self.start_monitor()
 
-        # Save to config file if available
-        if self._config_path and os.path.exists(self._config_path):
-            try:
-                with open(self._config_path, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-
-                # Update monitor section (remove legacy heart_beat if present)
-                config.pop("heart_beat", None)
-                config["monitor"] = {
-                    "enable": self._monitor_config["enable"],
-                    "interval": self._monitor_config["interval"],
-                    "tg_bot_token": self._monitor_config["tg_bot_token"],
-                    "tg_chat_id": self._monitor_config["tg_chat_id"]
-                }
-
-                with open(self._config_path, "w", encoding="utf-8") as f:
-                    json.dump(config, f, ensure_ascii=False, indent=2)
-
-                logger.info(f"Monitor config saved to {self._config_path}")
-            except Exception as e:
-                logger.error(f"Failed to save monitor config: {e}")
-                return {"status": "error", "message": f"Failed to save config: {e}"}
+        if self._config_path:
+            self._save_config()
 
         return {"status": "ok", "config": self._monitor_config.copy()}
 
@@ -690,24 +673,8 @@ class ClientPool:
         if "fallback_to_auto" in new_config:
             self._fallback_config["fallback_to_auto"] = new_config["fallback_to_auto"]
 
-        # Save to config file if available
-        if self._config_path and os.path.exists(self._config_path):
-            try:
-                with open(self._config_path, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-
-                # Update fallback section
-                config["fallback"] = {
-                    "fallback_to_auto": self._fallback_config["fallback_to_auto"]
-                }
-
-                with open(self._config_path, "w", encoding="utf-8") as f:
-                    json.dump(config, f, ensure_ascii=False, indent=2)
-
-                logger.info(f"Fallback config saved to {self._config_path}")
-            except Exception as e:
-                logger.error(f"Failed to save fallback config: {e}")
-                return {"status": "error", "message": f"Failed to save config: {e}"}
+        if self._config_path:
+            self._save_config()
 
         return {"status": "ok", "config": self._fallback_config.copy()}
 
@@ -746,7 +713,7 @@ class ClientPool:
         Flow:
         1. get_user_info() — verify session is valid
         2. get_rate_limits() — fetch precise per-mode quotas
-        3. Set state based on results (normal/downgrade/offline)
+        3. session_valid + rate_limits are set; state is computed automatically
 
         Returns:
             Dict with status, state, and rate_limits
@@ -769,7 +736,7 @@ class ClientPool:
 
             if not is_logged_in:
                 with self._lock:
-                    wrapper.state = "offline"
+                    wrapper.session_valid = False
                     wrapper.last_check = time.time()
                 logger.warning(f"Client '{client_id}' session invalid (not logged in)")
 
@@ -786,45 +753,21 @@ class ClientPool:
             logger.debug(f"[{client_id}] rate_limits: {rate_limits}")
 
             with self._lock:
+                wrapper.session_valid = True
                 wrapper.rate_limits = rate_limits
                 wrapper.rate_limits_updated = time.time()
                 wrapper.last_check = time.time()
 
-            # Step 3: Determine state from rate limits
-            pro_remaining = rate_limits.get("pro_remaining")
-            modes = rate_limits.get("modes", {})
-            pro_search = modes.get("pro_search", {})
-
-            if pro_search.get("available") and (pro_remaining is None or pro_remaining > 0):
-                # Pro available and has quota (or quota not tracked)
-                new_state = "normal"
-            elif pro_search.get("available") and pro_remaining == 0:
-                # Pro available but exhausted
-                new_state = "downgrade"
-            elif modes:
-                # Got mode data but pro_search not available
-                new_state = "downgrade"
-            elif pro_remaining is not None and pro_remaining > 0:
-                # Simple endpoint worked, pro has remaining
-                new_state = "normal"
-            elif pro_remaining is not None and pro_remaining == 0:
-                new_state = "downgrade"
-            else:
-                # Rate limit API returned nothing useful but session is valid
-                new_state = "normal"
-
-            with self._lock:
-                wrapper.state = new_state
-
+            new_state = wrapper.state  # computed property
             logger.info(f"[{client_id}] Health check: {prev_state} -> {new_state} "
-                        f"(pro_remaining={pro_remaining})")
+                        f"(pro_remaining={rate_limits.get('pro_remaining')})")
 
             # Telegram notification on state change
-            if new_state == "downgrade" and prev_state != "downgrade":
+            if new_state == "exhausted" and prev_state != "exhausted":
                 await self._send_telegram_notification(
-                    f"⚠️ perplexity mcp: <b>{client_id}</b> downgraded (pro quota exhausted)."
+                    f"⚠️ perplexity mcp: <b>{client_id}</b> pro quota exhausted."
                 )
-            elif new_state == "normal" and prev_state == "downgrade":
+            elif new_state == "normal" and prev_state == "exhausted":
                 await self._send_telegram_notification(
                     f"✅ perplexity mcp: <b>{client_id}</b> recovered (pro quota available)."
                 )
@@ -834,7 +777,7 @@ class ClientPool:
 
         except Exception as e:
             with self._lock:
-                wrapper.state = "offline"
+                wrapper.session_valid = False
                 wrapper.last_check = time.time()
             logger.error(f"Health check failed for client '{client_id}': {e}")
 
@@ -918,19 +861,11 @@ class ClientPool:
                 with self._lock:
                     wrapper.rate_limits = limits
                     wrapper.rate_limits_updated = time.time()
-
-                    # Update state based on rate limits
-                    pro_remaining = limits.get("pro_remaining")
-                    pro = limits.get("modes", {}).get("pro_search", {})
-                    if pro.get("available") and (pro_remaining is None or pro_remaining > 0):
-                        wrapper.state = "normal"
-                    elif pro_remaining is not None and pro_remaining > 0:
-                        wrapper.state = "normal"
-                    elif pro_remaining == 0 or (pro and not pro.get("available")):
-                        wrapper.state = "downgrade"
-
+                    if wrapper.session_valid is None:
+                        wrapper.session_valid = True  # API responded, session works
                     wrapper.last_check = time.time()
 
+                pro_remaining = limits.get("pro_remaining")
                 results[client_id] = limits
                 logger.info(f"[{client_id}] Rate limits refreshed: pro_remaining={pro_remaining}")
             except Exception as e:
@@ -1134,6 +1069,9 @@ class ClientPool:
         """Save the current configuration to the config file."""
         if not self._config_path:
             return
+        if not self._config_writable:
+            logger.debug("Config is read-only, skipping save")
+            return
 
         try:
             config = {
@@ -1176,6 +1114,11 @@ class ClientPool:
                     pass
                 raise
 
+            # Update mtime so reload_config() doesn't re-read our own write
+            try:
+                self._config_file_mtime = os.path.getmtime(self._config_path)
+            except OSError:
+                pass
             logger.info(f"Config saved to {self._config_path}")
         except Exception as e:
             logger.error(f"Failed to save config: {e}")
@@ -1209,7 +1152,8 @@ class ClientPool:
             with self._lock:
                 for client_id, wrapper in self.clients.items():
                     state["clients"][client_id] = {
-                        "state": wrapper.state,
+                        "session_valid": wrapper.session_valid,
+                        "state": wrapper.state,  # computed, for backward compat
                         "last_check": wrapper.last_check,
                         "rate_limits": wrapper.rate_limits,
                     }
@@ -1262,20 +1206,24 @@ class ClientPool:
                     if wrapper is None:
                         continue
 
-                    new_state = client_state.get("state")
                     new_check = client_state.get("last_check") or client_state.get("last_heartbeat")
-
-                    if new_state and new_state in ("normal", "downgrade", "offline"):
-                        old_state = wrapper.state
-                        if old_state != new_state:
-                            logger.info(
-                                f"[{client_id}] State updated from shared state: "
-                                f"{old_state} -> {new_state}"
-                            )
-                        wrapper.state = new_state
-
                     if new_check is not None:
                         wrapper.last_check = new_check
+
+                    # Load session_valid (new format) or derive from legacy state
+                    sv = client_state.get("session_valid")
+                    if sv is not None:
+                        old_sv = wrapper.session_valid
+                        wrapper.session_valid = sv
+                        if old_sv != sv:
+                            logger.info(f"[{client_id}] session_valid updated: {old_sv} -> {sv}")
+                    else:
+                        # Backward compat: derive from old "state" field
+                        legacy_state = client_state.get("state")
+                        if legacy_state == "offline":
+                            wrapper.session_valid = False
+                        elif legacy_state in ("normal", "downgrade"):
+                            wrapper.session_valid = True
 
                     # v2: load rate_limits if present
                     if version >= 2:

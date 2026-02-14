@@ -69,8 +69,8 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
     sources = arguments.get("sources") or TOOL_DEFAULT_SOURCES.get(name, ["web"])
     language = arguments.get("language", "en-US")
 
-    # Sync shared pool state before query
-    pool = get_pool()
+    # Sync shared pool state before query (MCP is read-only, HTTP server owns config)
+    pool = get_pool(config_writable=False)
     pool.reload_config()  # Pick up tokens added/removed via web UI
     pool.load_state()
 
@@ -81,18 +81,6 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
             await pool.refresh_all_rate_limits()
         except Exception as e:
             logger.warning(f"Rate limit refresh failed: {e}")
-
-    # Research quota check — warn early if exhausted
-    if name == "perplexity_research":
-        available = pool.get_accounts_with_research_quota()
-        if not available:
-            return [TextContent(
-                type="text",
-                text=(
-                    "Deep research quota exhausted on all accounts. "
-                    "Use perplexity_ask instead for pro search, or wait for quota reset."
-                )
-            )]
 
     try:
         # Run synchronous run_query() in thread pool with timeout
@@ -182,7 +170,7 @@ async def run_server():
 
     # Initialize pool on startup to validate config
     try:
-        pool = get_pool()
+        pool = get_pool(config_writable=False)
         client_count = len(pool.clients)
         logger.info(f"Initialized pool with {client_count} client(s)")
 

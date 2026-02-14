@@ -66,7 +66,7 @@ Most Perplexity MCP servers are single-account wrappers around the paid Sonar AP
 ### 🏊 Token Pool Engine
 - **Round-robin** rotation across accounts
 - **Exponential backoff** on failures (60s → 120s → ... → 1h cap)
-- **3-level fallback** — Pro → downgraded → anonymous
+- **3-level fallback** — Pro → auto (exhausted) → anonymous
 - **Smart quota tracking** — decrements locally, verifies at zero
 - **Hot-reload** — add/remove tokens without restart
 
@@ -208,11 +208,11 @@ Opens automatically at **`http://localhost:8123/admin/`**
 
 | Feature | Description |
 |:--------|:------------|
-| 📊 **Stats Grid** | Total clients, Pro/Downgrade counts, Monitor status |
-| 📋 **Token Table** | Sortable columns, filter pills (Pro/Downgrade/Offline/Unknown), icon actions |
+| 📊 **Stats Grid** | Total clients, Online/Exhausted counts, Monitor status |
+| 📋 **Token Table** | Sortable columns, filter pills (Online/Exhausted/Offline/Unknown), icon actions |
 | 💰 **Quota Column** | Per-token breakdown — Pro remaining, Research quota, Agentic research |
 | ❤️ **Health Monitor** | Zero-cost checks via rate-limit API, configurable interval |
-| 📱 **Telegram Alerts** | Notifications on token state changes (expired, downgraded, back online) |
+| 📱 **Telegram Alerts** | Notifications on token state changes (expired, exhausted, back online) |
 | 🔄 **Fallback Toggle** | Enable/disable automatic Pro → free fallback |
 | 📥 **Import/Export** | Bulk token management via JSON config files |
 | 📝 **Log Viewer** | Live streaming, level filter (Error/Warning/Info/Debug), search, follow mode |
@@ -287,23 +287,23 @@ Add multiple accounts for **round-robin rotation** with automatic failover:
 
 ### Token States
 
-The monitor detects four token states:
+Token state is computed automatically from `session_valid` + `rate_limits` (never set manually):
 
 | State | Meaning | Badge | Behavior |
 |:------|:--------|:------|:---------|
-| 🟢 `normal` | Pro search available | **Pro** | Used for all requests |
-| 🟡 `downgrade` | Pro quota exhausted | **Downgrade** | Skipped for Pro, used as auto fallback |
+| 🟢 `normal` | Session valid, pro quota available | **Online** | Used for all requests |
+| 🟡 `exhausted` | Session valid, pro quota = 0 | **Exhausted** | Skipped for Pro, used as auto fallback |
 | 🔴 `offline` | Session invalid/expired | **Offline** | Not used for any requests |
-| 🔵 `unknown` | Not yet checked | **Ready** | Used normally until first check |
+| 🔵 `unknown` | Not yet checked | **Unknown** | Used normally (quota assumed available) |
 
 ### Fallback Chain
 
 When a Pro request fails, the server tries progressively:
 
 ```
-1. ✅ Next Pro client (round-robin)
-2. ✅ Next Pro client ...
-3. 🟡 First downgraded client (auto mode)
+1. ✅ Next client with Pro quota (round-robin)
+2. ✅ Next client with Pro quota ...
+3. 🟡 Any available client (auto mode)
 4. 🔵 Anonymous session (auto mode)
 5. ❌ Error returned to caller
 ```

@@ -67,7 +67,7 @@ tests/                   # Test suite
 - `src/tools.py` — 2 MCP tool definitions with LLM-optimized descriptions
 - Backend handles: ClientPool, round-robin rotation, exponential backoff, 3-level fallback
 - Rate limits fetched via `/rest/rate-limit` API (no test queries consumed)
-- Client selection: pure round-robin among available clients (enabled + not in backoff)
+- Client selection: `get_client(mode)` — round-robin among clients with quota for the requested mode
 - `perplexity.server.main` — HTTP server with admin UI (plain Starlette + uvicorn, port 8123)
 
 ## Two Entry Points
@@ -80,18 +80,21 @@ tests/                   # Test suite
 Zero-cost health checks via Perplexity rate-limit API — no queries consumed.
 
 - Periodic background task checks all clients at configurable interval
-- Detects token states: **normal** (pro available), **downgrade** (pro exhausted), **offline** (session invalid)
+- Sets `session_valid` + fetches `rate_limits` for each client
 - Telegram notifications on state changes
 - State shared via `pool_state.json` for cross-process coordination
+- `state` is a computed property derived from `session_valid` + `rate_limits`
 
 ## Token States
 
+State is computed (never set manually):
+
 | State | Meaning | Behavior |
 |-------|---------|----------|
-| `normal` | Pro search available | Used for all requests |
-| `downgrade` | Pro quota exhausted | Skipped for pro, used as auto fallback |
-| `offline` | Session invalid | Not used |
-| `unknown` | Not yet checked | Used normally |
+| `normal` | Session valid, pro quota available | Used for all requests |
+| `exhausted` | Session valid, pro quota = 0 | Skipped for pro, used as auto fallback |
+| `offline` | Session invalid/expired | Not used |
+| `unknown` | Not yet checked | Used normally (assumes quota available) |
 
 ## Admin REST API Endpoints
 
@@ -124,5 +127,5 @@ Vite proxy paths: /pool, /monitor, /health, /logs, /fallback
 
 ```bash
 # Unit tests (no server required)
-.venv/bin/python -m pytest tests/test_config.py tests/test_utils.py tests/test_client_pool.py -v
+.venv/bin/python -m pytest tests/test_config.py tests/test_utils.py tests/test_client_pool.py tests/test_research_downgrade.py -v
 ```

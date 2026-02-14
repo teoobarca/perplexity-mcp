@@ -67,9 +67,13 @@ class TestValidateResearchResponse:
 # ---------------------------------------------------------------------------
 
 class TestDeepResearchQuotaCheck:
-    """Tests for the pre-request research quota check in run_query()."""
+    """Tests for deep research quota filtering via get_client(mode).
 
-    def _make_pool_with_client(self, client_id, rate_limits, state="normal"):
+    get_client("deep research") checks has_quota() which filters by
+    research.available and research.remaining from rate_limits.
+    """
+
+    def _make_pool_with_client(self, client_id, rate_limits):
         """Create a mock pool with a single client that has given rate_limits."""
         from perplexity.server.client_pool import ClientWrapper
 
@@ -80,21 +84,19 @@ class TestDeepResearchQuotaCheck:
 
         wrapper = ClientWrapper(mock_client, client_id)
         wrapper.rate_limits = rate_limits
-        wrapper._state = state
+        wrapper.session_valid = True
 
         mock_pool = MagicMock()
         mock_pool.clients = {client_id: wrapper}
         mock_pool.is_fallback_to_auto_enabled.return_value = False
 
-        call_count = [0]
-        def fake_get_client():
-            call_count[0] += 1
-            if call_count[0] <= 2:
+        # get_client(mode) delegates to has_quota — simulate the real behavior
+        def fake_get_client(mode="auto"):
+            if wrapper.is_available() and wrapper.has_quota(mode):
                 return (client_id, mock_client)
-            return (client_id, None)
+            return (None, None)
 
         mock_pool.get_client.side_effect = fake_get_client
-        mock_pool.get_client_state.return_value = state
 
         return mock_pool, mock_client
 
@@ -112,7 +114,6 @@ class TestDeepResearchQuotaCheck:
         result = run_query("test query", mode="deep research", language="en-US")
 
         assert result["status"] == "error"
-        pool.mark_client_pro_failure.assert_called_with("user1")
         client.search.assert_not_called()
 
     @patch("perplexity.server.app.get_pool")
@@ -129,7 +130,6 @@ class TestDeepResearchQuotaCheck:
         result = run_query("test query", mode="deep research", language="en-US")
 
         assert result["status"] == "error"
-        pool.mark_client_pro_failure.assert_called_with("user1")
         client.search.assert_not_called()
 
     @patch("perplexity.server.app.get_pool")

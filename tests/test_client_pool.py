@@ -437,7 +437,7 @@ class TestClientPool:
         # Get clients multiple times and verify round-robin
         ids = []
         for _ in range(6):
-            client_id, client = pool.get_client()
+            client_id, client = pool.get_client("auto")
             ids.append(client_id)
 
         # Should rotate through all clients
@@ -464,7 +464,7 @@ class TestClientPool:
         pool.clients["anonymous"].available_after = time.time() + 1000
 
         # Should skip anonymous and return user1
-        client_id, client = pool.get_client()
+        client_id, client = pool.get_client("auto")
         assert client_id == "user1"
 
     @patch("pathlib.Path.exists", return_value=False)
@@ -479,9 +479,9 @@ class TestClientPool:
         # Mark the only client as unavailable
         pool.clients["anonymous"].available_after = time.time() + 1000
 
-        client_id, client = pool.get_client()
+        client_id, client = pool.get_client("auto")
 
-        # Should return the client_id but client as None
+        # Should return the client_id but client as None (all in backoff)
         assert client_id == "anonymous"
         assert client is None
 
@@ -585,7 +585,7 @@ class TestClientPool:
         def get_clients():
             try:
                 for _ in range(20):
-                    pool.get_client()
+                    pool.get_client("auto")
             except Exception as e:
                 errors.append(e)
 

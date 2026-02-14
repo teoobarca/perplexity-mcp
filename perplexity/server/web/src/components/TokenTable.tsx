@@ -4,7 +4,7 @@ import { Toggle } from './ui/Toggle'
 
 type SortField = 'id' | 'state' | 'quota' | 'requests' | 'last_check'
 type SortDir = 'asc' | 'desc'
-type FilterState = 'all' | 'normal' | 'downgrade' | 'offline' | 'unknown'
+type FilterState = 'all' | 'normal' | 'exhausted' | 'offline' | 'unknown'
 
 interface TokenTableProps {
   clients: ClientInfo[]
@@ -16,7 +16,7 @@ interface TokenTableProps {
   onFallbackChange: (enabled: boolean) => void
 }
 
-const STATE_ORDER: Record<string, number> = { normal: 0, unknown: 1, downgrade: 2, offline: 3 }
+const STATE_ORDER: Record<string, number> = { normal: 0, unknown: 1, exhausted: 2, offline: 3 }
 
 function getProRemaining(c: ClientInfo): number | null {
   return c.rate_limits?.pro_remaining ?? null
@@ -49,7 +49,7 @@ export function TokenTable({
   const [filter, setFilter] = useState<FilterState>('all')
 
   const stateCounts = useMemo(() => {
-    const counts: Record<string, number> = { all: 0, normal: 0, downgrade: 0, offline: 0, unknown: 0 }
+    const counts: Record<string, number> = { all: 0, normal: 0, exhausted: 0, offline: 0, unknown: 0 }
     for (const c of clients || []) {
       counts.all++
       const s = c.state || 'unknown'
@@ -154,12 +154,12 @@ export function TokenTable({
     }
   }
 
-  const getErrorCount = (c: ClientInfo) => (c.fail_count || 0) + (c.pro_fail_count || 0)
+  const getErrorCount = (c: ClientInfo) => c.fail_count || 0
 
   const filters: { key: FilterState; label: string }[] = [
     { key: 'all', label: 'All' },
-    { key: 'normal', label: 'Pro' },
-    { key: 'downgrade', label: 'Downgrade' },
+    { key: 'normal', label: 'Online' },
+    { key: 'exhausted', label: 'Exhausted' },
     { key: 'offline', label: 'Offline' },
     { key: 'unknown', label: 'Unknown' },
   ]
@@ -237,7 +237,7 @@ export function TokenTable({
               </thead>
               <tbody className="text-sm">
                 {filteredAndSorted.map((c) => {
-                  const isDisabledInProOnlyMode = !fallbackToAuto && c.state === 'downgrade'
+                  const isDisabledInProOnlyMode = !fallbackToAuto && c.state === 'exhausted'
                   const errors = getErrorCount(c)
                   const pro = getProRemaining(c)
                   const research = getResearchRemaining(c)
@@ -264,17 +264,17 @@ export function TokenTable({
                           <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs bg-error/10 text-error">
                             <span className="w-1.5 h-1.5 rounded-full bg-error" />Offline
                           </span>
-                        ) : c.state === 'downgrade' ? (
+                        ) : c.state === 'exhausted' ? (
                           <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs bg-warning/10 text-warning">
-                            <span className="w-1.5 h-1.5 rounded-full bg-warning" />Downgrade
+                            <span className="w-1.5 h-1.5 rounded-full bg-warning" />Exhausted
                           </span>
                         ) : c.state === 'normal' ? (
                           <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs bg-success/10 text-success">
-                            <span className="w-1.5 h-1.5 rounded-full bg-success" />Pro
+                            <span className="w-1.5 h-1.5 rounded-full bg-success" />Online
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs bg-info/10 text-info">
-                            <span className="w-1.5 h-1.5 rounded-full bg-info" />Ready
+                            <span className="w-1.5 h-1.5 rounded-full bg-info" />Unknown
                           </span>
                         )}
                       </td>

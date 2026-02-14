@@ -30,11 +30,11 @@ _CLIENT_LIMIT_PATTERN = re.compile(
 _pool: Optional[ClientPool] = None
 
 
-def get_pool() -> ClientPool:
+def get_pool(config_writable: bool = True) -> ClientPool:
     """Get or create the singleton ClientPool instance."""
     global _pool
     if _pool is None:
-        _pool = ClientPool()
+        _pool = ClientPool(config_writable=config_writable)
     return _pool
 
 
@@ -168,57 +168,32 @@ def run_query(
     logger.debug(f"Starting query: mode={mode}, model={model}, fallback_enabled={should_fallback}, is_pro_mode={is_pro_mode}")
 
     # --- 3. Client Pool Rotation ---
-    # For Pro mode: first try non-downgraded clients, then fallback to auto if enabled
+    # get_client(mode) returns only clients with quota for this mode
     attempted_clients = set()
-    skipped_downgraded_clients = []
     last_error = None
     total_clients = len(pool.clients)
-    seen_ids = set()
 
-    # Try all distinct clients via round-robin
-    for _ in range(total_clients * 2):  # 2x to account for round-robin wrapping
-        client_id, client = pool.get_client()
+    for _ in range(total_clients):
+        client_id, client = pool.get_client(mode)
+
+        if client_id is None:
+            # No clients have quota for this mode
+            break
 
         if client is None:
+            # All clients in backoff
             if not attempted_clients:
                 earliest = pool.get_earliest_available_time()
                 last_error = Exception(f"All clients are currently unavailable. Earliest available at: {earliest}")
             break
 
-        if client_id in seen_ids:
-            # Saw this client already — if we've seen all clients, stop
-            if len(seen_ids) >= total_clients:
-                break
-            continue
-
-        seen_ids.add(client_id)
-
-        # Check client state
-        client_state = pool.get_client_state(client_id)
-
-        logger.debug(f"[{client_id}] Checking client: state={client_state}, requested_mode={mode}")
-
-        # For Pro mode: skip downgraded clients first, try Pro clients
-        if is_pro_mode and client_state == "downgrade":
-            logger.debug(f"[{client_id}] Client is DOWNGRADED, skipping for Pro mode (will retry with fallback if enabled)")
-            skipped_downgraded_clients.append((client_id, client))
-            continue
+        if client_id in attempted_clients:
+            break  # Round-robin wrapped around
 
         attempted_clients.add(client_id)
-        logger.debug(f"[{client_id}] Selected client for Pro mode, state={client_state}")
-
-        # Pre-request quota check for deep research
-        if mode == "deep research":
-            wrapper = pool.clients.get(client_id)
-            if wrapper and wrapper.rate_limits:
-                research = wrapper.rate_limits.get("modes", {}).get("research", {})
-                if research.get("available") is False or research.get("remaining") == 0:
-                    logger.debug(f"[{client_id}] No research quota, skipping for deep research")
-                    pool.mark_client_pro_failure(client_id)
-                    continue
+        logger.debug(f"[{client_id}] Selected for mode={mode}")
 
         try:
-            # Stateful Validation
             validate_search_params(mode, model, chosen_sources, own_account=client.own)
             validate_query_limits(client.copilot, client.file_upload, mode, len(normalized_files))
 
@@ -238,10 +213,9 @@ def run_query(
             if response is None:
                 raise Exception("Empty response from Perplexity (connection may have dropped)")
 
-            # Success
             pool.mark_client_success(client_id, mode=mode)
             clean_result = extract_clean_result(response)
-            logger.debug(f"[{client_id}] Query succeeded with Pro mode")
+            logger.debug(f"[{client_id}] Query succeeded")
             return {"status": "ok", "data": clean_result}
 
         except ValidationError as exc:
@@ -251,10 +225,7 @@ def run_query(
 
             if is_client_limit:
                 logger.debug(f"[{client_id}] Client limit error: {exc}")
-                if mode == "pro":
-                    pool.mark_client_pro_failure(client_id)
-                else:
-                    pool.mark_client_failure(client_id)
+                pool.mark_client_failure(client_id)
                 continue
             else:
                 logger.debug(f"[{client_id}] Validation error (user input): {exc}")
@@ -266,59 +237,46 @@ def run_query(
 
         except Exception as exc:
             last_error = exc
-            error_msg = str(exc).lower()
             logger.debug(f"[{client_id}] Request exception: {type(exc).__name__}: {exc}")
-
-            if mode == "pro" and _CLIENT_LIMIT_PATTERN.search(error_msg):
-                pool.mark_client_pro_failure(client_id)
-            else:
-                pool.mark_client_failure(client_id)
+            pool.mark_client_failure(client_id)
             continue
 
-    # --- 4. Fallback: Use first available downgraded client with auto mode ---
-    if should_fallback and is_pro_mode and skipped_downgraded_clients:
-        best_client_id, best_client = skipped_downgraded_clients[0]
-
-        logger.info(
-            f"All {len(skipped_downgraded_clients)} Pro clients are DOWNGRADED. "
-            f"Fallback enabled, using client [{best_client_id}] with auto mode"
-        )
-        logger.warning(
-            f"[{best_client_id}] DOWNGRADE FALLBACK: switching from mode='{mode}' model='{model}' to mode='auto'"
-        )
-
-        try:
-            validate_search_params("auto", None, chosen_sources, own_account=best_client.own)
-
-            logger.debug(f"[{best_client_id}] Executing fallback search: mode=auto, model=None")
-
-            response = best_client.search(
-                clean_query,
-                mode="auto",
-                model=None,
-                sources=chosen_sources,
-                files={},  # auto mode doesn't support files
-                stream=False,
-                language=language,
-                incognito=incognito,
+    # --- 4. Fallback: Try auto mode with any available client ---
+    if should_fallback and is_pro_mode:
+        fallback_id, fallback_client = pool.get_client("auto")
+        if fallback_client:
+            logger.warning(
+                f"[{fallback_id}] FALLBACK: switching from mode='{mode}' to mode='auto'"
             )
+            try:
+                validate_search_params("auto", None, chosen_sources, own_account=fallback_client.own)
 
-            if response and "answer" in response:
-                pool.mark_client_success(best_client_id, mode="auto")
-                clean_result = extract_clean_result(response)
-                clean_result["fallback"] = True
-                clean_result["fallback_mode"] = "auto"
-                clean_result["original_mode"] = mode
-                clean_result["original_model"] = model
-                logger.info(f"[{best_client_id}] DOWNGRADE FALLBACK succeeded: '{mode}' -> 'auto'")
-                return {"status": "ok", "data": clean_result}
-            else:
-                logger.warning(f"[{best_client_id}] DOWNGRADE FALLBACK failed: no answer in response")
-                last_error = Exception("Fallback search returned no answer")
+                response = fallback_client.search(
+                    clean_query,
+                    mode="auto",
+                    model=None,
+                    sources=chosen_sources,
+                    files={},
+                    stream=False,
+                    language=language,
+                    incognito=incognito,
+                )
 
-        except Exception as fallback_exc:
-            logger.warning(f"[{best_client_id}] DOWNGRADE FALLBACK failed: {fallback_exc}")
-            last_error = fallback_exc
+                if response and "answer" in response:
+                    pool.mark_client_success(fallback_id, mode="auto")
+                    clean_result = extract_clean_result(response)
+                    clean_result["fallback"] = True
+                    clean_result["fallback_mode"] = "auto"
+                    clean_result["original_mode"] = mode
+                    clean_result["original_model"] = model
+                    logger.info(f"[{fallback_id}] Fallback succeeded: '{mode}' -> 'auto'")
+                    return {"status": "ok", "data": clean_result}
+                else:
+                    last_error = Exception("Fallback search returned no answer")
+
+            except Exception as fallback_exc:
+                logger.warning(f"[{fallback_id}] Fallback failed: {fallback_exc}")
+                last_error = fallback_exc
 
     # --- 5. Last resort: Anonymous auto mode fallback ---
     if should_fallback and mode != "auto":
@@ -349,8 +307,7 @@ def run_query(
             logger.warning(f"Anonymous auto mode fallback failed: {anon_exc}")
 
     # --- 6. Final Error Handling ---
-    total_tried = len(attempted_clients) + len(skipped_downgraded_clients)
-    logger.warning(f"Query failed after trying {total_tried} clients (Pro: {len(attempted_clients)}, Downgraded: {len(skipped_downgraded_clients)}): {last_error}")
+    logger.warning(f"Query failed after trying {len(attempted_clients)} clients: {last_error}")
     return {
         "status": "error",
         "error_type": last_error.__class__.__name__ if last_error else "RequestFailed",

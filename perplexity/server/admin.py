@@ -84,7 +84,13 @@ async def pool_api(request: Request) -> JSONResponse:
     elif action == "add":
         if not all([client_id, csrf_token, session_token]):
             return JSONResponse({"status": "error", "message": "Missing required parameters"})
-        return JSONResponse(pool.add_client(client_id, csrf_token, session_token))
+        result = pool.add_client(client_id, csrf_token, session_token)
+        if result.get("status") == "ok":
+            # Auto-test new token so it gets session_valid + rate_limits immediately
+            test_result = await pool.test_client(client_id)
+            result["test"] = test_result
+            pool.save_state(writer="add_client")
+        return JSONResponse(result)
     elif action == "remove":
         if not client_id:
             return JSONResponse({"status": "error", "message": "Missing required parameter: id"})
