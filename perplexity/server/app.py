@@ -3,6 +3,7 @@ Starlette application instance and shared utilities.
 """
 
 import os
+import re
 from contextlib import asynccontextmanager
 from typing import Any, Dict, Iterable, List, Optional, Union
 
@@ -19,6 +20,11 @@ from .utils import (
 )
 
 logger = get_logger("server.app")
+
+_CLIENT_LIMIT_PATTERN = re.compile(
+    r'\b(pro queries|pro search|rate.?limit|quota|remaining|file upload)\b',
+    re.IGNORECASE,
+)
 
 # Global ClientPool singleton
 _pool: Optional[ClientPool] = None
@@ -167,20 +173,25 @@ def run_query(
     skipped_downgraded_clients = []
     last_error = None
     total_clients = len(pool.clients)
+    seen_ids = set()
 
-    # Try up to total_clients times to ensure we attempt all available clients
-    for _ in range(total_clients):
+    # Try all distinct clients via round-robin
+    for _ in range(total_clients * 2):  # 2x to account for round-robin wrapping
         client_id, client = pool.get_client()
 
         if client is None:
-            # All clients are in backoff or none exist
             if not attempted_clients:
                 earliest = pool.get_earliest_available_time()
                 last_error = Exception(f"All clients are currently unavailable. Earliest available at: {earliest}")
             break
 
-        if client_id in attempted_clients or client_id in [c[0] for c in skipped_downgraded_clients]:
+        if client_id in seen_ids:
+            # Saw this client already — if we've seen all clients, stop
+            if len(seen_ids) >= total_clients:
+                break
             continue
+
+        seen_ids.add(client_id)
 
         # Check client state
         client_state = pool.get_client_state(client_id)
@@ -223,7 +234,7 @@ def run_query(
         except ValidationError as exc:
             last_error = exc
             error_msg = str(exc).lower()
-            is_client_limit = any(kw in error_msg for kw in ["pro", "limit", "account", "upload", "quota", "remaining"])
+            is_client_limit = bool(_CLIENT_LIMIT_PATTERN.search(error_msg))
 
             if is_client_limit:
                 logger.debug(f"[{client_id}] Client limit error: {exc}")
@@ -245,7 +256,7 @@ def run_query(
             error_msg = str(exc).lower()
             logger.debug(f"[{client_id}] Request exception: {type(exc).__name__}: {exc}")
 
-            if mode == "pro" and any(kw in error_msg for kw in ["pro", "quota", "limit", "remaining"]):
+            if mode == "pro" and _CLIENT_LIMIT_PATTERN.search(error_msg):
                 pool.mark_client_pro_failure(client_id)
             else:
                 pool.mark_client_failure(client_id)
