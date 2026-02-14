@@ -3,7 +3,11 @@
 <!-- Hero -->
 <br />
 
-<img src="https://img.shields.io/badge/Perplexity-MCP_Server-1a1a2e?style=for-the-badge&labelColor=09090b&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiMxNGI4YTYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNMTIgMmwzLjA5IDYuMjZMNDggOC4yN2wtNSA0Ljg3IDEuMTggNi44OEwxMiAxNy43N2wtNi4xOCAzLjI1TDcgMTQuMTQgMiA5LjI3bDYuOTEtMS4wMUwxMiAyeiIvPjwvc3ZnPg==" alt="Perplexity MCP Server" />
+<img src="docs/images/logo.svg" alt="Logo" width="120" />
+
+<br />
+
+<img src="https://img.shields.io/badge/Perplexity-MCP_Server-1a1a2e?style=for-the-badge&labelColor=09090b" alt="Perplexity MCP Server" />
 
 <br /><br />
 
@@ -17,10 +21,6 @@
 <a href="https://modelcontextprotocol.io/"><img src="https://img.shields.io/badge/MCP-Compatible-22c55e?style=flat-square&labelColor=18181b" alt="MCP Compatible" /></a>&nbsp;
 <img src="https://img.shields.io/badge/Token_Pool-Multi_Account-f59e0b?style=flat-square&labelColor=18181b" alt="Token Pool" />&nbsp;
 <img src="https://img.shields.io/badge/Admin_Panel-React-8b5cf6?style=flat-square&labelColor=18181b" alt="Admin Panel" />
-
-<br /><br />
-
-<img src="docs/images/dashboard.png" alt="Admin Dashboard" width="100%" />
 
 <br />
 
@@ -88,6 +88,14 @@ Most Perplexity MCP servers are single-account wrappers around the paid Sonar AP
 ## 🖼️ Screenshots
 
 <div align="center">
+
+### Token Pool Dashboard
+
+<img src="docs/images/dashboard.png" alt="Token Pool Dashboard" width="100%" />
+
+<sub>Stats grid, monitor controls, sortable token table with per-account quotas (Pro / Research / Agentic), filter pills, and one-click actions.</sub>
+
+<br /><br />
 
 ### Log Viewer
 
