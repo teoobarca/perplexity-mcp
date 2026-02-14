@@ -34,46 +34,16 @@ async def pool_status(request: Request) -> JSONResponse:
     return JSONResponse(pool.get_status())
 
 
-# ==================== Token Export/Import (auth required) ====================
+# ==================== Token Export/Import ====================
 
 async def pool_export(request: Request) -> JSONResponse:
     """Export all token configurations."""
-    from perplexity.config import ADMIN_TOKEN
-
-    if not ADMIN_TOKEN:
-        return JSONResponse({
-            "status": "error",
-            "message": "Admin token not configured. Set PPLX_ADMIN_TOKEN environment variable."
-        }, status_code=403)
-
-    provided_token = request.headers.get("X-Admin-Token")
-    if not provided_token or provided_token != ADMIN_TOKEN:
-        return JSONResponse({
-            "status": "error",
-            "message": "Invalid or missing admin token."
-        }, status_code=401)
-
     pool = get_pool()
     return JSONResponse(pool.export_config())
 
 
 async def pool_export_single(request: Request) -> JSONResponse:
     """Export a single token configuration."""
-    from perplexity.config import ADMIN_TOKEN
-
-    if not ADMIN_TOKEN:
-        return JSONResponse({
-            "status": "error",
-            "message": "Admin token not configured. Set PPLX_ADMIN_TOKEN environment variable."
-        }, status_code=403)
-
-    provided_token = request.headers.get("X-Admin-Token")
-    if not provided_token or provided_token != ADMIN_TOKEN:
-        return JSONResponse({
-            "status": "error",
-            "message": "Invalid or missing admin token."
-        }, status_code=401)
-
     client_id = request.path_params.get("client_id")
     pool = get_pool()
     return JSONResponse(pool.export_single_client(client_id))
@@ -81,21 +51,6 @@ async def pool_export_single(request: Request) -> JSONResponse:
 
 async def pool_import(request: Request) -> JSONResponse:
     """Import token configurations (supports array format)."""
-    from perplexity.config import ADMIN_TOKEN
-
-    if not ADMIN_TOKEN:
-        return JSONResponse({
-            "status": "error",
-            "message": "Admin token not configured. Set PPLX_ADMIN_TOKEN environment variable."
-        }, status_code=403)
-
-    provided_token = request.headers.get("X-Admin-Token")
-    if not provided_token or provided_token != ADMIN_TOKEN:
-        return JSONResponse({
-            "status": "error",
-            "message": "Invalid or missing admin token."
-        }, status_code=401)
-
     pool = get_pool()
     try:
         body = await request.json()
@@ -112,8 +67,6 @@ async def pool_import(request: Request) -> JSONResponse:
 
 async def pool_api(request: Request) -> JSONResponse:
     """Pool management API endpoint for admin frontend."""
-    from perplexity.config import ADMIN_TOKEN
-
     action = request.path_params.get("action")
     pool = get_pool()
 
@@ -121,32 +74,6 @@ async def pool_api(request: Request) -> JSONResponse:
         body = await request.json()
     except Exception:
         body = {}
-
-    # Actions that require authentication
-    protected_actions = {"add", "remove", "enable", "disable", "reset"}
-
-    # Verify admin token
-    if action in protected_actions:
-        if not ADMIN_TOKEN:
-            return JSONResponse({
-                "status": "error",
-                "message": "Admin token not configured. Set PPLX_ADMIN_TOKEN environment variable."
-            }, status_code=403)
-
-        # Get token from header or body
-        provided_token = request.headers.get("X-Admin-Token") or body.get("admin_token")
-
-        if not provided_token:
-            return JSONResponse({
-                "status": "error",
-                "message": "Authentication required. Provide admin token."
-            }, status_code=401)
-
-        if provided_token != ADMIN_TOKEN:
-            return JSONResponse({
-                "status": "error",
-                "message": "Invalid admin token."
-            }, status_code=401)
 
     client_id = body.get("id")
     csrf_token = body.get("csrf_token")
@@ -175,34 +102,8 @@ async def pool_api(request: Request) -> JSONResponse:
             return JSONResponse({"status": "error", "message": "Missing required parameter: id"})
         return JSONResponse(pool.reset_client(client_id))
     elif action == "export":
-        if not ADMIN_TOKEN:
-            return JSONResponse({
-                "status": "error",
-                "message": "Admin token not configured. Set PPLX_ADMIN_TOKEN environment variable."
-            }, status_code=403)
-
-        provided_token = request.headers.get("X-Admin-Token") or body.get("admin_token")
-        if not provided_token or provided_token != ADMIN_TOKEN:
-            return JSONResponse({
-                "status": "error",
-                "message": "Invalid or missing admin token."
-            }, status_code=401)
-
         return JSONResponse(pool.export_config())
     elif action == "import":
-        if not ADMIN_TOKEN:
-            return JSONResponse({
-                "status": "error",
-                "message": "Admin token not configured. Set PPLX_ADMIN_TOKEN environment variable."
-            }, status_code=403)
-
-        provided_token = request.headers.get("X-Admin-Token") or body.get("admin_token")
-        if not provided_token or provided_token != ADMIN_TOKEN:
-            return JSONResponse({
-                "status": "error",
-                "message": "Invalid or missing admin token."
-            }, status_code=401)
-
         return JSONResponse(pool.import_config(body))
     else:
         return JSONResponse({"status": "error", "message": f"Unknown action: {action}"})
@@ -253,22 +154,7 @@ async def admin_static(request: Request):
 
 async def monitor_config(request: Request) -> JSONResponse:
     """Get or update monitor configuration."""
-    from perplexity.config import ADMIN_TOKEN
-
     if request.method == "GET":
-        if not ADMIN_TOKEN:
-            return JSONResponse({
-                "status": "error",
-                "message": "Admin token not configured. Set PPLX_ADMIN_TOKEN environment variable."
-            }, status_code=403)
-
-        provided_token = request.headers.get("X-Admin-Token")
-        if not provided_token or provided_token != ADMIN_TOKEN:
-            return JSONResponse({
-                "status": "error",
-                "message": "Invalid or missing admin token."
-            }, status_code=401)
-
         pool = get_pool()
         return JSONResponse({
             "status": "ok",
@@ -276,19 +162,6 @@ async def monitor_config(request: Request) -> JSONResponse:
         })
 
     # POST: update config
-    if not ADMIN_TOKEN:
-        return JSONResponse({
-            "status": "error",
-            "message": "Admin token not configured. Set PPLX_ADMIN_TOKEN environment variable."
-        }, status_code=403)
-
-    provided_token = request.headers.get("X-Admin-Token")
-    if not provided_token or provided_token != ADMIN_TOKEN:
-        return JSONResponse({
-            "status": "error",
-            "message": "Invalid or missing admin token."
-        }, status_code=401)
-
     pool = get_pool()
     try:
         body = await request.json()
@@ -311,21 +184,6 @@ async def monitor_config(request: Request) -> JSONResponse:
 
 async def monitor_start(request: Request) -> JSONResponse:
     """Start monitor background task."""
-    from perplexity.config import ADMIN_TOKEN
-
-    if not ADMIN_TOKEN:
-        return JSONResponse({
-            "status": "error",
-            "message": "Admin token not configured. Set PPLX_ADMIN_TOKEN environment variable."
-        }, status_code=403)
-
-    provided_token = request.headers.get("X-Admin-Token")
-    if not provided_token or provided_token != ADMIN_TOKEN:
-        return JSONResponse({
-            "status": "error",
-            "message": "Invalid or missing admin token."
-        }, status_code=401)
-
     pool = get_pool()
     started = pool.start_monitor()
     if started:
@@ -338,21 +196,6 @@ async def monitor_start(request: Request) -> JSONResponse:
 
 async def monitor_stop(request: Request) -> JSONResponse:
     """Stop monitor background task."""
-    from perplexity.config import ADMIN_TOKEN
-
-    if not ADMIN_TOKEN:
-        return JSONResponse({
-            "status": "error",
-            "message": "Admin token not configured. Set PPLX_ADMIN_TOKEN environment variable."
-        }, status_code=403)
-
-    provided_token = request.headers.get("X-Admin-Token")
-    if not provided_token or provided_token != ADMIN_TOKEN:
-        return JSONResponse({
-            "status": "error",
-            "message": "Invalid or missing admin token."
-        }, status_code=401)
-
     pool = get_pool()
     stopped = pool.stop_monitor()
     if stopped:
@@ -363,21 +206,6 @@ async def monitor_stop(request: Request) -> JSONResponse:
 
 async def monitor_test(request: Request) -> JSONResponse:
     """Trigger manual health check."""
-    from perplexity.config import ADMIN_TOKEN
-
-    if not ADMIN_TOKEN:
-        return JSONResponse({
-            "status": "error",
-            "message": "Admin token not configured. Set PPLX_ADMIN_TOKEN environment variable."
-        }, status_code=403)
-
-    provided_token = request.headers.get("X-Admin-Token")
-    if not provided_token or provided_token != ADMIN_TOKEN:
-        return JSONResponse({
-            "status": "error",
-            "message": "Invalid or missing admin token."
-        }, status_code=401)
-
     pool = get_pool()
     try:
         body = await request.json()
@@ -409,21 +237,6 @@ async def fallback_config(request: Request) -> JSONResponse:
         })
 
     # POST: update config
-    from perplexity.config import ADMIN_TOKEN
-
-    if not ADMIN_TOKEN:
-        return JSONResponse({
-            "status": "error",
-            "message": "Admin token not configured. Set PPLX_ADMIN_TOKEN environment variable."
-        }, status_code=403)
-
-    provided_token = request.headers.get("X-Admin-Token")
-    if not provided_token or provided_token != ADMIN_TOKEN:
-        return JSONResponse({
-            "status": "error",
-            "message": "Invalid or missing admin token."
-        }, status_code=401)
-
     pool = get_pool()
     try:
         body = await request.json()
@@ -470,22 +283,8 @@ def _tail_file(filepath, n: int = 100) -> tuple[list[str], int, int]:
 
 
 async def logs_tail(request: Request) -> JSONResponse:
-    """Get last N lines of log file (auth required)."""
-    from perplexity.config import ADMIN_TOKEN, LOG_FILE
-
-    # Verify admin token
-    if not ADMIN_TOKEN:
-        return JSONResponse({
-            "status": "error",
-            "message": "Admin token not configured. Set PPLX_ADMIN_TOKEN environment variable."
-        }, status_code=403)
-
-    provided_token = request.headers.get("X-Admin-Token")
-    if not provided_token or provided_token != ADMIN_TOKEN:
-        return JSONResponse({
-            "status": "error",
-            "message": "Invalid or missing admin token."
-        }, status_code=401)
+    """Get last N lines of log file."""
+    from perplexity.config import LOG_FILE
 
     # Get requested line count, default 100, max 1000
     try:
