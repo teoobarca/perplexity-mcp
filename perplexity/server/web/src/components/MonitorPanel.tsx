@@ -4,8 +4,6 @@ import { Toggle } from './ui/Toggle'
 
 interface MonitorPanelProps {
   monitorConfig: MonitorConfig
-  adminToken: string
-  isAuthenticated: boolean
   onConfigUpdate: (config: MonitorConfig) => void
   onToast: (message: string, type: 'success' | 'error') => void
   onRefresh: () => void
@@ -13,8 +11,6 @@ interface MonitorPanelProps {
 
 export function MonitorPanel({
   monitorConfig,
-  adminToken,
-  isAuthenticated,
   onConfigUpdate,
   onToast,
   onRefresh,
@@ -29,17 +25,12 @@ export function MonitorPanel({
   })
 
   const handleMonitorAction = async (action: string) => {
-    if (!isAuthenticated) {
-      onToast('Authentication required', 'error')
-      return
-    }
-
     if (action === 'test') {
       setIsGlobalTesting(true)
     }
 
     try {
-      const resp = await apiCall(`monitor/${action}`, {}, adminToken)
+      const resp = await apiCall(`monitor/${action}`, {})
       if (resp.status === 'ok') {
         onToast(`Monitor ${action} completed`, 'success')
         onRefresh()
@@ -54,12 +45,8 @@ export function MonitorPanel({
   }
 
   const handleToggleEnable = async (enabled: boolean) => {
-    if (!isAuthenticated) {
-      onToast('Authentication required', 'error')
-      return
-    }
     try {
-      const resp = await updateMonitorConfig({ ...configForm, enable: enabled }, adminToken)
+      const resp = await updateMonitorConfig({ ...configForm, enable: enabled })
       if (resp.status === 'ok' && resp.config) {
         onConfigUpdate(resp.config)
         setConfigForm((f) => ({ ...f, enable: enabled }))
@@ -73,13 +60,8 @@ export function MonitorPanel({
   }
 
   const handleSaveConfig = async () => {
-    if (!isAuthenticated) {
-      onToast('Authentication required', 'error')
-      return
-    }
-
     try {
-      const resp = await updateMonitorConfig(configForm, adminToken)
+      const resp = await updateMonitorConfig(configForm)
       if (resp.status === 'ok' && resp.config) {
         onToast('Config saved', 'success')
         onConfigUpdate(resp.config)
@@ -100,7 +82,6 @@ export function MonitorPanel({
           <Toggle
             enabled={monitorConfig.enable}
             onChange={handleToggleEnable}
-            disabled={!isAuthenticated}
           />
           <span className="text-xs text-text-muted">Every {monitorConfig.interval}h</span>
         </div>

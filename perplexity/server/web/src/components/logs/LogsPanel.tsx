@@ -2,10 +2,6 @@ import { useState, useRef, useEffect } from 'react'
 import { useLogs, RefreshInterval } from 'hooks/useLogs'
 import { Toggle } from '../ui/Toggle'
 
-interface LogsPanelProps {
-  adminToken: string
-}
-
 type LogLevel = 'all' | 'error' | 'warning' | 'info' | 'debug'
 
 const INTERVAL_OPTIONS: { value: RefreshInterval; label: string }[] = [
@@ -46,7 +42,7 @@ function highlightMatch(line: string, query: string): JSX.Element {
   )
 }
 
-export function LogsPanel({ adminToken }: LogsPanelProps) {
+export function LogsPanel() {
   const {
     filteredLines,
     totalLines,
@@ -61,7 +57,7 @@ export function LogsPanel({ adminToken }: LogsPanelProps) {
     setIsAutoRefresh,
     refresh,
     lastUpdate,
-  } = useLogs(adminToken)
+  } = useLogs()
 
   const [levelFilter, setLevelFilter] = useState<LogLevel>('all')
   const [followMode, setFollowMode] = useState(true)

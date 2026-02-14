@@ -1,9 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { fetchPoolStatus, fetchMonitorConfig, fetchFallbackConfig, PoolStatus, MonitorConfig, FallbackConfig } from 'lib/api'
-import { useAuth } from './useAuth'
 
 export function usePool() {
-  const { adminToken } = useAuth()
   const [data, setData] = useState<PoolStatus>({
     total: 0,
     available: 0,
@@ -16,22 +14,11 @@ export function usePool() {
   const [lastSync, setLastSync] = useState<number | null>(null)
 
   const refreshData = useCallback(async () => {
-    if (!adminToken) {
-      try {
-        const poolData = await fetchPoolStatus()
-        setData(poolData)
-        setLastSync(Date.now())
-      } catch (e) {
-        console.error('Failed to fetch pool status:', e)
-      }
-      return
-    }
-
     setIsLoading(true)
     try {
       const [poolData, monitorResp, fallbackResp] = await Promise.all([
         fetchPoolStatus(),
-        fetchMonitorConfig(adminToken),
+        fetchMonitorConfig(),
         fetchFallbackConfig(),
       ])
       setData(poolData)
@@ -48,7 +35,7 @@ export function usePool() {
     } finally {
       setIsLoading(false)
     }
-  }, [adminToken])
+  }, [])
 
   useEffect(() => {
     refreshData()

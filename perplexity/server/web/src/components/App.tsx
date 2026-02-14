@@ -1,9 +1,7 @@
 import { useState, useCallback, useEffect } from 'react'
-import { useAuth } from 'hooks/useAuth'
 import { useToast } from 'hooks/useToast'
 import { usePool } from 'hooks/usePool'
 import { apiCall, importTokenConfig, TokenConfig } from 'lib/api'
-import { AuthBar } from './AuthBar'
 import { StatsGrid } from './StatsGrid'
 import { MonitorPanel } from './MonitorPanel'
 import { TokenTable } from './TokenTable'
@@ -23,7 +21,6 @@ function formatRelativeTime(epochMs: number): string {
 }
 
 export function App() {
-  const { adminToken, isAuthenticated, login, logout } = useAuth()
   const { toasts, addToast, removeToast } = useToast()
   const { data, monitorConfig, setMonitorConfig, fallbackConfig, setFallbackConfig, lastSync, refreshData } = usePool()
 
@@ -40,11 +37,6 @@ export function App() {
     return () => clearInterval(interval)
   }, [])
 
-  const handleLogout = useCallback(() => {
-    logout()
-    addToast('Logged out', 'success')
-  }, [logout, addToast])
-
   const handleAddToken = useCallback(
     async (id: string, csrf: string, session: string) => {
       if (!id || !csrf || !session) {
@@ -58,8 +50,7 @@ export function App() {
           id,
           csrf_token: csrf,
           session_token: session,
-        },
-        adminToken
+        }
       )
 
       if (resp.status === 'ok') {
@@ -70,12 +61,12 @@ export function App() {
         addToast(resp.message || 'Error', 'error')
       }
     },
-    [adminToken, addToast, refreshData]
+    [addToast, refreshData]
   )
 
   const handleDeleteToken = useCallback(
     async (id: string) => {
-      const resp = await apiCall('remove', { id }, adminToken)
+      const resp = await apiCall('remove', { id })
       if (resp.status === 'ok') {
         addToast('Token deleted', 'success')
         refreshData()
@@ -83,13 +74,13 @@ export function App() {
         addToast(resp.message || 'Error', 'error')
       }
     },
-    [adminToken, addToast, refreshData]
+    [addToast, refreshData]
   )
 
   const handleImportConfig = useCallback(
     async (tokens: TokenConfig[]) => {
       try {
-        const resp = await importTokenConfig(tokens, adminToken)
+        const resp = await importTokenConfig(tokens)
         if (resp.status === 'ok') {
           addToast(`Imported ${tokens.length} tokens`, 'success')
           setIsAddModalOpen(false)
@@ -101,22 +92,18 @@ export function App() {
         addToast(err instanceof Error ? err.message : 'Import failed', 'error')
       }
     },
-    [adminToken, addToast, refreshData]
+    [addToast, refreshData]
   )
 
   const confirmDelete = useCallback(
     (id: string) => {
-      if (!isAuthenticated) {
-        addToast('Authentication required', 'error')
-        return
-      }
       setConfirmMessage(
         `Are you sure you want to permanently delete token "${id}"? This action is irreversible.`
       )
       setConfirmAction(() => () => handleDeleteToken(id))
       setIsConfirmModalOpen(true)
     },
-    [isAuthenticated, addToast, handleDeleteToken]
+    [handleDeleteToken]
   )
 
   const executeConfirm = useCallback(() => {
@@ -157,50 +144,34 @@ export function App() {
           <div className="mt-4 h-px bg-gradient-to-r from-transparent via-accent/30 to-transparent" />
         </header>
 
-        {/* Auth Bar */}
-        <div
-          className="animate-fade-in opacity-0 [animation-fill-mode:forwards]"
-          style={{ animationDelay: '50ms' }}
-        >
-          <AuthBar
-            adminToken={adminToken}
-            isAuthenticated={isAuthenticated}
-            onLogin={login}
-            onLogout={handleLogout}
-            onAuthError={(msg) => addToast(msg, 'error')}
-          />
-        </div>
-
         {/* Tab Navigation */}
-        {isAuthenticated && (
-          <div
-            className="mb-6 animate-fade-in opacity-0 [animation-fill-mode:forwards]"
-            style={{ animationDelay: '100ms' }}
-          >
-            <div className="inline-flex rounded-lg bg-surface border border-border-subtle p-1">
-              <button
-                onClick={() => setActiveTab('pool')}
-                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
-                  activeTab === 'pool'
-                    ? 'bg-elevated text-text-primary shadow-sm'
-                    : 'text-text-muted hover:text-text-secondary'
-                }`}
-              >
-                Token Pool
-              </button>
-              <button
-                onClick={() => setActiveTab('logs')}
-                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
-                  activeTab === 'logs'
-                    ? 'bg-elevated text-text-primary shadow-sm'
-                    : 'text-text-muted hover:text-text-secondary'
-                }`}
-              >
-                Logs
-              </button>
-            </div>
+        <div
+          className="mb-6 animate-fade-in opacity-0 [animation-fill-mode:forwards]"
+          style={{ animationDelay: '100ms' }}
+        >
+          <div className="inline-flex rounded-lg bg-surface border border-border-subtle p-1">
+            <button
+              onClick={() => setActiveTab('pool')}
+              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
+                activeTab === 'pool'
+                  ? 'bg-elevated text-text-primary shadow-sm'
+                  : 'text-text-muted hover:text-text-secondary'
+              }`}
+            >
+              Token Pool
+            </button>
+            <button
+              onClick={() => setActiveTab('logs')}
+              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
+                activeTab === 'logs'
+                  ? 'bg-elevated text-text-primary shadow-sm'
+                  : 'text-text-muted hover:text-text-secondary'
+              }`}
+            >
+              Logs
+            </button>
           </div>
-        )}
+        </div>
 
         {/* Tab Content */}
         {activeTab === 'pool' ? (
@@ -212,15 +183,13 @@ export function App() {
               <StatsGrid data={data} monitorConfig={monitorConfig} />
             </div>
 
-            {isAuthenticated && monitorConfig && (
+            {monitorConfig && (
               <div
                 className="animate-fade-in opacity-0 [animation-fill-mode:forwards]"
                 style={{ animationDelay: '200ms' }}
               >
                 <MonitorPanel
                   monitorConfig={monitorConfig}
-                  adminToken={adminToken}
-                  isAuthenticated={isAuthenticated}
                   onConfigUpdate={setMonitorConfig}
                   onToast={addToast}
                   onRefresh={refreshData}
@@ -234,8 +203,6 @@ export function App() {
             >
               <TokenTable
                 clients={data.clients}
-                adminToken={adminToken}
-                isAuthenticated={isAuthenticated}
                 fallbackToAuto={fallbackConfig.fallback_to_auto}
                 onToast={addToast}
                 onRefresh={refreshData}
@@ -250,7 +217,7 @@ export function App() {
             className="animate-fade-in opacity-0 [animation-fill-mode:forwards]"
             style={{ animationDelay: '150ms' }}
           >
-            <LogsPanel adminToken={adminToken} />
+            <LogsPanel />
           </div>
         )}
 

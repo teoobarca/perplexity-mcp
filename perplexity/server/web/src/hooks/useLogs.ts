@@ -20,7 +20,7 @@ interface UseLogsResult {
   lastUpdate: string | null
 }
 
-export function useLogs(adminToken: string): UseLogsResult {
+export function useLogs(): UseLogsResult {
   const [lines, setLines] = useState<string[]>([])
   const [totalLines, setTotalLines] = useState(0)
   const [fileSize, setFileSize] = useState(0)
@@ -34,16 +34,11 @@ export function useLogs(adminToken: string): UseLogsResult {
   const intervalRef = useRef<number | null>(null)
 
   const refresh = useCallback(async () => {
-    if (!adminToken) {
-      setError('Not authenticated')
-      return
-    }
-
     setIsLoading(true)
     setError(null)
 
     try {
-      const response: LogsResponse = await fetchLogs(adminToken, 100)
+      const response: LogsResponse = await fetchLogs(100)
 
       if (response.status === 'ok') {
         setLines(response.lines || [])
@@ -58,7 +53,7 @@ export function useLogs(adminToken: string): UseLogsResult {
     } finally {
       setIsLoading(false)
     }
-  }, [adminToken])
+  }, [])
 
   // Filter lines based on search query
   const filteredLines = searchQuery
@@ -72,7 +67,7 @@ export function useLogs(adminToken: string): UseLogsResult {
       intervalRef.current = null
     }
 
-    if (isAutoRefresh && refreshInterval > 0 && adminToken) {
+    if (isAutoRefresh && refreshInterval > 0) {
       // Initial fetch
       refresh()
 
@@ -87,14 +82,14 @@ export function useLogs(adminToken: string): UseLogsResult {
         clearInterval(intervalRef.current)
       }
     }
-  }, [isAutoRefresh, refreshInterval, adminToken, refresh])
+  }, [isAutoRefresh, refreshInterval, refresh])
 
   // Fetch on mount if not auto-refreshing
   useEffect(() => {
-    if (!isAutoRefresh && adminToken && lines.length === 0) {
+    if (!isAutoRefresh && lines.length === 0) {
       refresh()
     }
-  }, [adminToken, isAutoRefresh, lines.length, refresh])
+  }, [isAutoRefresh, lines.length, refresh])
 
   return {
     lines,

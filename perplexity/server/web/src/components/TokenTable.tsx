@@ -8,8 +8,6 @@ type FilterState = 'all' | 'normal' | 'downgrade' | 'offline' | 'unknown'
 
 interface TokenTableProps {
   clients: ClientInfo[]
-  adminToken: string
-  isAuthenticated: boolean
   fallbackToAuto: boolean
   onToast: (message: string, type: 'success' | 'error') => void
   onRefresh: () => void
@@ -36,8 +34,6 @@ function getQuotaSortValue(c: ClientInfo): number {
 
 export function TokenTable({
   clients,
-  adminToken,
-  isAuthenticated,
   fallbackToAuto,
   onToast,
   onRefresh,
@@ -109,17 +105,15 @@ export function TokenTable({
   }
 
   const handleClientAction = async (action: string, id: string) => {
-    if (!isAuthenticated) { onToast('Authentication required', 'error'); return }
-    const resp = await apiCall(action, { id }, adminToken)
+    const resp = await apiCall(action, { id })
     if (resp.status === 'ok') { onToast(`Client ${id} ${action}d`, 'success'); onRefresh() }
     else { onToast(resp.message || 'Error', 'error') }
   }
 
   const handleTestClient = async (id: string) => {
-    if (!isAuthenticated) { onToast('Authentication required', 'error'); return }
     setTestingIds((prev) => new Set(prev).add(id))
     try {
-      const resp = await apiCall('monitor/test', { id }, adminToken)
+      const resp = await apiCall('monitor/test', { id })
       if (resp.status === 'ok') { onToast(`Test ${id} passed`, 'success'); onRefresh() }
       else { onToast(resp.error || resp.message || 'Test failed', 'error') }
     } finally {
@@ -128,11 +122,10 @@ export function TokenTable({
   }
 
   const handleToggleFallback = async () => {
-    if (!isAuthenticated) { onToast('Authentication required', 'error'); return }
     setUpdatingFallback(true)
     try {
       const newValue = !fallbackToAuto
-      const resp = await updateFallbackConfig({ fallback_to_auto: newValue }, adminToken)
+      const resp = await updateFallbackConfig({ fallback_to_auto: newValue })
       if (resp.status === 'ok') {
         onFallbackChange(newValue)
         onToast(newValue ? 'Fallback enabled' : 'Fallback disabled', 'success')
@@ -141,10 +134,9 @@ export function TokenTable({
   }
 
   const handleDownload = async (id: string) => {
-    if (!isAuthenticated) { onToast('Authentication required', 'error'); return }
     setDownloadingIds((prev) => new Set(prev).add(id))
     try {
-      const config = await downloadSingleTokenConfig(id, adminToken)
+      const config = await downloadSingleTokenConfig(id)
       const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -183,19 +175,12 @@ export function TokenTable({
               <Toggle
                 enabled={fallbackToAuto}
                 onChange={handleToggleFallback}
-                disabled={!isAuthenticated || updatingFallback}
+                disabled={updatingFallback}
               />
             </div>
             <button
-              onClick={() => {
-                if (!isAuthenticated) { onToast('Authentication required', 'error'); return }
-                onAddClick()
-              }}
-              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                isAuthenticated
-                  ? 'bg-accent text-white hover:bg-accent-hover'
-                  : 'bg-elevated text-text-muted cursor-not-allowed'
-              }`}
+              onClick={onAddClick}
+              className="px-4 py-2 text-sm font-medium rounded-lg transition-colors bg-accent text-white hover:bg-accent-hover"
             >
               Add Token
             </button>
@@ -306,15 +291,15 @@ export function TokenTable({
                         {c.last_check_at ? new Date(c.last_check_at).toLocaleTimeString() : '-'}
                       </td>
                       <td className="p-3 text-right">
-                        <div className={`flex justify-end gap-0.5 ${isAuthenticated ? '' : 'opacity-50'}`}>
+                        <div className="flex justify-end gap-0.5">
                           {/* Download */}
                           <button
                             className={`p-1.5 rounded-md transition-colors ${
-                              isAuthenticated && !downloadingIds.has(c.id) ? 'text-text-muted hover:text-accent hover:bg-elevated' : 'cursor-not-allowed opacity-50'
+                              !downloadingIds.has(c.id) ? 'text-text-muted hover:text-accent hover:bg-elevated' : 'cursor-not-allowed opacity-50'
                             }`}
                             onClick={() => handleDownload(c.id)}
                             title="Download Config"
-                            disabled={!isAuthenticated || downloadingIds.has(c.id)}
+                            disabled={downloadingIds.has(c.id)}
                           >
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
@@ -323,10 +308,9 @@ export function TokenTable({
                           {/* Pause/Play */}
                           {c.enabled ? (
                             <button
-                              className={`p-1.5 rounded-md transition-colors ${isAuthenticated ? 'text-text-muted hover:text-warning hover:bg-elevated' : 'cursor-not-allowed'}`}
+                              className="p-1.5 rounded-md transition-colors text-text-muted hover:text-warning hover:bg-elevated"
                               onClick={() => handleClientAction('disable', c.id)}
                               title="Disable"
-                              disabled={!isAuthenticated}
                             >
                               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" />
@@ -334,10 +318,9 @@ export function TokenTable({
                             </button>
                           ) : (
                             <button
-                              className={`p-1.5 rounded-md transition-colors ${isAuthenticated ? 'text-text-muted hover:text-success hover:bg-elevated' : 'cursor-not-allowed'}`}
+                              className="p-1.5 rounded-md transition-colors text-text-muted hover:text-success hover:bg-elevated"
                               onClick={() => handleClientAction('enable', c.id)}
                               title="Enable"
-                              disabled={!isAuthenticated}
                             >
                               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
@@ -347,11 +330,11 @@ export function TokenTable({
                           {/* Test */}
                           <button
                             className={`p-1.5 rounded-md transition-colors ${
-                              isAuthenticated && !testingIds.has(c.id) ? 'text-text-muted hover:text-accent hover:bg-elevated' : 'cursor-not-allowed opacity-50'
+                              !testingIds.has(c.id) ? 'text-text-muted hover:text-accent hover:bg-elevated' : 'cursor-not-allowed opacity-50'
                             }`}
                             onClick={() => handleTestClient(c.id)}
                             title="Health Check"
-                            disabled={!isAuthenticated || testingIds.has(c.id)}
+                            disabled={testingIds.has(c.id)}
                           >
                             {testingIds.has(c.id) ? (
                               <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -366,10 +349,9 @@ export function TokenTable({
                           </button>
                           {/* Delete */}
                           <button
-                            className={`p-1.5 rounded-md transition-colors ${isAuthenticated ? 'text-text-muted hover:text-error hover:bg-elevated' : 'cursor-not-allowed'}`}
+                            className="p-1.5 rounded-md transition-colors text-text-muted hover:text-error hover:bg-elevated"
                             onClick={() => onConfirmDelete(c.id)}
                             title="Remove"
-                            disabled={!isAuthenticated}
                           >
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
