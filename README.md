@@ -7,8 +7,8 @@
 
 <br /><br />
 
-**Free Perplexity AI for your coding assistant.**
-**No API keys. No subscription. Just plug and play.**
+**The only Perplexity MCP server with multi-account pooling, an admin dashboard, and zero-cost monitoring.**<br />
+**No API keys. No per-query fees. Uses your existing Perplexity Pro session.**
 
 <br />
 
@@ -20,7 +20,7 @@
 
 <br /><br />
 
-[Features](#-features) · [Quick Start](#-quick-start) · [Admin Panel](#-admin-panel) · [Configuration](#-configuration) · [Architecture](#-architecture)
+[Features](#-features) · [Screenshots](#%EF%B8%8F-screenshots) · [Quick Start](#-quick-start) · [How It Compares](#-how-it-compares) · [Admin Panel](#%EF%B8%8F-admin-panel) · [Architecture](#%EF%B8%8F-architecture)
 
 <br />
 
@@ -28,36 +28,16 @@
 
 ---
 
-## 🎯 Why Perplexity MCP?
+## 🎯 Why This One?
 
-Your AI coding assistant is only as good as its sources. Built-in web search gives you 10 blue links. **Perplexity gives you synthesized answers with citations** — from the latest docs, research papers, and community discussions.
+There are a dozen Perplexity MCP servers on GitHub. Most give you a single tool wrapping the Perplexity API — one account, no monitoring, no fallback. **This one is built for real workloads:**
 
-<table>
-<tr>
-<th width="50%">❌ Without Perplexity</th>
-<th width="50%">✅ With Perplexity MCP</th>
-</tr>
-<tr>
-<td>
-
-- Generic search results
-- Outdated Stack Overflow answers
-- Manual reading through pages
-- No reasoning or analysis
-- Single search engine
-
-</td>
-<td>
-
-- **Synthesized answers** from multiple sources
-- **Current documentation** and real-time data
-- **Deep research** with 10-30+ citations
-- **Multi-model reasoning** (GPT, Claude, Grok, Gemini)
-- **Academic papers** via Scholar source
-
-</td>
-</tr>
-</table>
+- 🆓 **No API costs** — uses session cookies, not the paid Perplexity API ($0/query vs $5/1000)
+- 🏊 **Multi-account pool** — round-robin across N accounts with automatic failover
+- 📊 **Admin dashboard** — React UI to monitor quotas, manage tokens, tail logs
+- ❤️ **Zero-cost health checks** — monitors all accounts via rate-limit API without consuming queries
+- 🛡️ **Downgrade protection** — detects when Perplexity silently returns a regular result instead of deep research
+- 📱 **Telegram alerts** — get notified when tokens expire or quota runs out
 
 ---
 
@@ -73,8 +53,7 @@ Your AI coding assistant is only as good as its sources. Built-in web search giv
 - **Deep Research** — comprehensive 10-30+ citation reports
 - **Multi-source** — web, scholar, and social
 
-### 🤖 Multi-Model Support
-Choose from the latest AI models:
+### 🤖 9 Models Available
 - `sonar` · `gpt-5.2` · `claude-4.5-sonnet` · `grok-4.1`
 - `gpt-5.2-thinking` · `claude-4.5-sonnet-thinking`
 - `gemini-3.0-pro` · `kimi-k2-thinking` · `grok-4.1-reasoning`
@@ -82,18 +61,19 @@ Choose from the latest AI models:
 </td>
 <td width="50%">
 
-### 🏊 Token Pool
-- **Round-robin** rotation across multiple accounts
-- **Auto-failover** with exponential backoff
+### 🏊 Token Pool Engine
+- **Round-robin** rotation across accounts
+- **Exponential backoff** on failures (60s → 120s → ... → 1h cap)
 - **3-level fallback** — Pro → downgraded → anonymous
-- **Silent downgrade protection** for deep research
+- **Smart quota tracking** — decrements locally, verifies at zero
+- **Hot-reload** — add/remove tokens without restart
 
-### 📊 Admin Panel
-- Real-time quota dashboard (Pro / Research / Agentic)
-- Health monitoring with zero-cost API checks
-- Token management — add, remove, enable/disable
-- Telegram alerts on state changes
-- Live log viewer with filtering
+### 🛡️ Production Hardened
+- Silent deep research downgrade detection
+- Atomic config saves (no corruption on crash)
+- Connection drop handling
+- Cross-process state sharing via `pool_state.json`
+- 53 unit tests
 
 </td>
 </tr>
@@ -109,7 +89,7 @@ Choose from the latest AI models:
 
 <img src="docs/images/dashboard.png" alt="Token Pool Dashboard" width="100%" />
 
-<sub>Real-time overview — stats grid, monitor controls, token table with per-account quotas (Pro / Research / Agentic), filter pills, and one-click actions.</sub>
+<sub>Stats grid, monitor controls, sortable token table with per-account quotas (Pro / Research / Agentic), filter pills, and one-click actions.</sub>
 
 <br /><br />
 
@@ -120,6 +100,31 @@ Choose from the latest AI models:
 <sub>Live log streaming with auto-refresh, level filtering, search highlighting, follow mode, and line numbers.</sub>
 
 </div>
+
+---
+
+## 📊 How It Compares
+
+Every other Perplexity MCP server is a single-account wrapper. This is the only one with pool management, monitoring, and an admin UI.
+
+| Feature | This project | Official (Perplexity) | jsonallen | cyanheads | Others |
+|:--------|:---:|:---:|:---:|:---:|:---:|
+| **Free (no API key)** | ✅ | ❌ API key | ❌ API key | ❌ API key | Mostly API key |
+| **Multi-account pool** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Admin dashboard** | ✅ React | ❌ | ❌ | ❌ | ❌ |
+| **Health monitoring** | ✅ Zero-cost | ❌ | ❌ | ❌ | ❌ |
+| **Telegram alerts** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Quota tracking** | ✅ Per-mode | ❌ | ❌ | ❌ | ❌ |
+| **Auto-fallback** | ✅ 3-level | ❌ | ❌ | ❌ | ❌ |
+| **Downgrade protection** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Deep research** | ✅ | ✅ | ✅ | ✅ | Varies |
+| **Reasoning mode** | ✅ Auto-detect | ✅ | ✅ | ❌ | Varies |
+| **Multi-model** | ✅ 9 models | ✅ 4 models | ❌ 1 model | ❌ | Varies |
+| **Hot-reload config** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Log viewer** | ✅ Live | ❌ | ❌ | ❌ | ❌ |
+
+> [!NOTE]
+> The [official Perplexity MCP server](https://github.com/perplexityai/modelcontextprotocol) uses the paid Sonar API ($5/1000 queries for Pro, $5/query for Deep Research). This project uses session cookies — same features, zero API cost.
 
 ---
 
@@ -179,7 +184,7 @@ Add to your MCP config file:
 
 ## 🛠️ Tools
 
-The server exposes two MCP tools, designed with LLM-optimized descriptions:
+Two MCP tools with LLM-optimized descriptions so your AI assistant picks the right one automatically:
 
 ### `perplexity_ask`
 
@@ -188,11 +193,11 @@ The server exposes two MCP tools, designed with LLM-optimized descriptions:
 | Parameter | Type | Default | Description |
 |:----------|:-----|:--------|:------------|
 | `query` | string | *required* | Natural language question with context |
-| `model` | string | `null` | Model selection (see [models](#-multi-model-support)) |
+| `model` | string | `null` | Model selection (see [models](#-9-models-available)) |
 | `sources` | array | `["web"]` | Sources: `web`, `scholar`, `social` |
 | `language` | string | `en-US` | ISO 639 language code |
 
-**Mode auto-detection:** Models with `thinking` or `reasoning` in the name automatically use **Reasoning mode** instead of Pro Search.
+**Mode auto-detection:** Models with `thinking` or `reasoning` in the name automatically switch to **Reasoning mode**.
 
 ```
 "gpt-5.2"          → Pro Search
@@ -210,7 +215,7 @@ The server exposes two MCP tools, designed with LLM-optimized descriptions:
 | `language` | string | `en-US` | ISO 639 language code |
 
 > [!TIP]
-> Deep research takes 2-5 minutes per query. Provide detailed context and constraints in your query for better results. The server has a 15-minute timeout to accommodate this.
+> Deep research takes 2-5 minutes per query. Provide detailed context and constraints for better results. The server has a 15-minute timeout to accommodate this.
 
 ---
 
@@ -224,15 +229,13 @@ perplexity-server
 
 Opens automatically at **`http://localhost:8123/admin/`**
 
-### Dashboard Features
-
 | Feature | Description |
 |:--------|:------------|
 | 📊 **Stats Grid** | Total clients, Pro/Downgrade counts, Monitor status |
 | 📋 **Token Table** | Sortable columns, filter pills (Pro/Downgrade/Offline/Unknown), icon actions |
 | 💰 **Quota Column** | Per-token breakdown — Pro remaining, Research quota, Agentic research |
 | ❤️ **Health Monitor** | Zero-cost checks via rate-limit API, configurable interval, Telegram alerts |
-| 🔄 **Fallback Toggle** | Enable/disable automatic Pro → free fallback per session |
+| 🔄 **Fallback Toggle** | Enable/disable automatic Pro → free fallback |
 | 📥 **Import/Export** | Bulk token management via JSON config files |
 | 📝 **Log Viewer** | Live streaming, level filter (Error/Warning/Info/Debug), search, follow mode |
 | 🧪 **Test Button** | Run health check on individual tokens or all at once |
@@ -241,7 +244,7 @@ Opens automatically at **`http://localhost:8123/admin/`**
 
 ## 🔐 Authentication
 
-By default, the server uses **anonymous Perplexity sessions** (rate limited). For unlimited Pro access, add your session tokens.
+By default, the server uses **anonymous Perplexity sessions** (rate limited). For Pro access, add your session tokens.
 
 ### How to Get Tokens
 
@@ -291,7 +294,7 @@ Add multiple accounts for **round-robin rotation** with automatic failover:
 ```
 
 > [!NOTE]
-> Session tokens typically last ~30 days. The monitor will detect expired tokens and alert you via Telegram if configured.
+> Session tokens last ~30 days. The monitor detects expired tokens and alerts you via Telegram.
 
 ---
 
@@ -367,8 +370,6 @@ When a Pro request fails, the server tries progressively:
 └──────────────────────────────────────────────────────────┘
 ```
 
-### Key Components
-
 | Component | File | Role |
 |:----------|:-----|:-----|
 | **MCP Server** | `src/server.py` | Stdio transport, pool state sync, timeout handling |
@@ -379,13 +380,6 @@ When a Pro request fails, the server tries progressively:
 | **Admin API** | `perplexity/server/admin.py` | REST endpoints + static file serving |
 | **Admin UI** | `perplexity/server/web/` | React + Vite + Tailwind dashboard |
 
-### Downgrade Protection
-
-The server prevents Perplexity from silently returning a regular Pro result when deep research is requested:
-
-1. **Pre-request check** — skips clients with zero research quota before sending the request
-2. **Post-response validation** — verifies the response structure matches deep research format (list of step objects, not a plain string)
-
 ---
 
 ## 🧪 Development
@@ -394,8 +388,8 @@ The server prevents Perplexity from silently returning a regular Pro result when
 # Install in development mode
 uv pip install -e ".[dev]" --python .venv/bin/python
 
-# Run unit tests
-.venv/bin/python -m pytest tests/test_config.py tests/test_utils.py tests/test_client_pool.py tests/test_research_downgrade.py -v
+# Run unit tests (53 tests)
+.venv/bin/python -m pytest tests/ -v
 
 # Frontend development
 cd perplexity/server/web
@@ -422,20 +416,9 @@ perplexity/                   # Backend engine
     admin.py                  #   Admin REST API
     utils.py                  #   Validation helpers
     main.py                   #   HTTP server entry point
-    web/                      #   React admin frontend
-      src/
-        components/           #   UI components
-          ui/                 #     Primitives (Toggle, StatCard, Modal, Toast)
-          TokenTable.tsx      #     Token management table
-          StatsGrid.tsx       #     Dashboard stats
-          MonitorPanel.tsx    #     Health monitor controls
-          logs/LogsPanel.tsx  #     Log viewer
+    web/                      #   React admin frontend (Vite + Tailwind)
 
-tests/                        # Test suite (53 tests)
-  test_config.py              #   Config validation
-  test_utils.py               #   Utility functions
-  test_client_pool.py         #   Pool logic, rotation, state
-  test_research_downgrade.py  #   Downgrade protection
+tests/                        # 53 unit tests
 ```
 
 ---
@@ -451,12 +434,4 @@ tests/                        # Test suite (53 tests)
 
 ## 📄 License
 
-[MIT](LICENSE) — use it however you want.
-
----
-
-<div align="center">
-
-<sub>Built with ❤️ for the MCP ecosystem</sub>
-
-</div>
+[MIT](LICENSE)
