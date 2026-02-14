@@ -71,6 +71,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
 
     # Sync shared pool state before query
     pool = get_pool()
+    pool.reload_config()  # Pick up tokens added/removed via web UI
     pool.load_state()
 
     # Lazy rate-limit refresh — if state is stale (>1h), refresh via API (zero quota cost)

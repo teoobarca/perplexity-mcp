@@ -173,6 +173,7 @@ class ClientPool:
         self._monitor_task: Optional[asyncio.Task] = None
         self._config_path: Optional[str] = None
         self._state_file_mtime: float = 0
+        self._config_file_mtime: float = 0
 
         # Load initial clients from config or environment
         self._initialize(config_path)
@@ -261,6 +262,11 @@ class ClientPool:
             self._add_client_internal(client_id, cookies)
 
         self._mode = "pool"
+        # Track config file mtime for hot-reload
+        try:
+            self._config_file_mtime = os.path.getmtime(config_path)
+        except OSError:
+            self._config_file_mtime = 0
 
     def _add_client_internal(self, client_id: str, cookies: Dict[str, str]) -> None:
         """Internal method to add a client without locking."""
@@ -1284,6 +1290,77 @@ class ClientPool:
             return False
         except Exception as e:
             logger.error(f"Failed to load pool state: {e}")
+            return False
+
+    def reload_config(self) -> bool:
+        """Re-read token_pool_config.json if it changed, adding/removing clients.
+
+        Only re-reads if the file mtime has changed (cheap os.stat check).
+        Returns True if config was reloaded, False if unchanged or not found.
+        """
+        if not self._config_path or not os.path.exists(self._config_path):
+            return False
+
+        try:
+            current_mtime = os.path.getmtime(self._config_path)
+            if current_mtime == self._config_file_mtime:
+                return False
+
+            with open(self._config_path, "r", encoding="utf-8") as f:
+                config = json.load(f)
+
+            tokens = config.get("tokens", [])
+            config_ids = set()
+
+            for token_entry in tokens:
+                client_id = token_entry.get("id")
+                csrf_token = token_entry.get("csrf_token")
+                session_token = token_entry.get("session_token")
+
+                if not all([client_id, csrf_token, session_token]):
+                    continue
+
+                config_ids.add(client_id)
+
+                with self._lock:
+                    if client_id not in self.clients:
+                        # New token — add it
+                        cookies = {
+                            "next-auth.csrf-token": csrf_token,
+                            "__Secure-next-auth.session-token": session_token,
+                        }
+                        self._add_client_internal(client_id, cookies)
+                        logger.info(f"[{client_id}] Hot-reloaded new client from config")
+
+            # Remove clients that were deleted from config
+            with self._lock:
+                removed = [cid for cid in self.clients if cid not in config_ids]
+                for cid in removed:
+                    if len(self.clients) <= 1:
+                        break  # Keep at least one client
+                    del self.clients[cid]
+                    self._rotation_order.remove(cid)
+                    if self._index >= len(self._rotation_order):
+                        self._index = 0
+                    logger.info(f"[{cid}] Removed client (no longer in config)")
+
+            # Update fallback config if changed
+            fallback = config.get("fallback")
+            if fallback and isinstance(fallback, dict):
+                self._fallback_config = {
+                    "fallback_to_auto": fallback.get("fallback_to_auto", True)
+                }
+
+            self._config_file_mtime = current_mtime
+            logger.info(f"Config reloaded from {self._config_path} "
+                        f"(tokens: {len(config_ids)}, pool: {len(self.clients)})")
+            return True
+
+        except json.JSONDecodeError as e:
+            logger.warning(f"Corrupted config file, ignoring: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Failed to reload config: {e}")
             return False
 
     def is_state_stale(self, max_age_hours: Optional[float] = None) -> bool:

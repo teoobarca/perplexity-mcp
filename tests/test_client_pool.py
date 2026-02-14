@@ -603,6 +603,104 @@ class TestClientPool:
         assert len(errors) == 0, f"Thread safety errors: {errors}"
 
 
+class TestClientPoolReloadConfig:
+    """Tests for hot-reloading config when tokens are added/removed externally."""
+
+    @patch("perplexity.server.client_pool.Client")
+    def test_reload_detects_new_token(self, mock_client_class):
+        """Test that reload_config picks up a new token added to config file."""
+        from perplexity.server.client_pool import ClientPool
+
+        # Create initial config with one token
+        config = {
+            "tokens": [
+                {"id": "user1", "csrf_token": "csrf1", "session_token": "session1"},
+            ]
+        }
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump(config, f)
+            config_path = f.name
+
+        try:
+            pool = ClientPool(config_path)
+            assert len(pool.clients) == 1
+            assert "user1" in pool.clients
+
+            # Add a second token to the config file
+            config["tokens"].append(
+                {"id": "user2", "csrf_token": "csrf2", "session_token": "session2"}
+            )
+            # Bump mtime by writing the file
+            time.sleep(0.05)
+            with open(config_path, "w") as f:
+                json.dump(config, f)
+
+            reloaded = pool.reload_config()
+            assert reloaded is True
+            assert len(pool.clients) == 2
+            assert "user2" in pool.clients
+            assert "user2" in pool._rotation_order
+        finally:
+            os.unlink(config_path)
+
+    @patch("perplexity.server.client_pool.Client")
+    def test_reload_no_change(self, mock_client_class):
+        """Test that reload_config returns False when config hasn't changed."""
+        from perplexity.server.client_pool import ClientPool
+
+        config = {
+            "tokens": [
+                {"id": "user1", "csrf_token": "csrf1", "session_token": "session1"},
+            ]
+        }
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump(config, f)
+            config_path = f.name
+
+        try:
+            pool = ClientPool(config_path)
+            reloaded = pool.reload_config()
+            assert reloaded is False
+        finally:
+            os.unlink(config_path)
+
+    @patch("perplexity.server.client_pool.Client")
+    def test_reload_removes_deleted_token(self, mock_client_class):
+        """Test that reload_config removes tokens deleted from config."""
+        from perplexity.server.client_pool import ClientPool
+
+        config = {
+            "tokens": [
+                {"id": "user1", "csrf_token": "csrf1", "session_token": "session1"},
+                {"id": "user2", "csrf_token": "csrf2", "session_token": "session2"},
+            ]
+        }
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump(config, f)
+            config_path = f.name
+
+        try:
+            pool = ClientPool(config_path)
+            assert len(pool.clients) == 2
+
+            # Remove user2 from config
+            config["tokens"] = [config["tokens"][0]]
+            time.sleep(0.05)
+            with open(config_path, "w") as f:
+                json.dump(config, f)
+
+            reloaded = pool.reload_config()
+            assert reloaded is True
+            assert len(pool.clients) == 1
+            assert "user1" in pool.clients
+            assert "user2" not in pool.clients
+        finally:
+            os.unlink(config_path)
+
+
 class TestClientPoolConfigValidation:
     """Tests for config file validation."""
 
