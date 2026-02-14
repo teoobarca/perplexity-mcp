@@ -570,7 +570,8 @@ class ClientPool:
             wrapper = self.clients.get(client_id)
             if not wrapper:
                 return {"status": "error", "message": f"Client '{client_id}' not found"}
-            return {"status": "ok", "data": wrapper.get_user_info()}
+        # HTTP call outside lock to avoid blocking pool operations
+        return {"status": "ok", "data": wrapper.get_user_info()}
 
     def get_client_state(self, client_id: str) -> str:
         """
@@ -596,10 +597,12 @@ class ClientPool:
             Dict with client_id -> user_info mapping
         """
         with self._lock:
-            result = {}
-            for client_id, wrapper in self.clients.items():
-                result[client_id] = wrapper.get_user_info()
-            return {"status": "ok", "data": result}
+            wrappers = list(self.clients.items())
+        # HTTP calls outside lock to avoid blocking pool operations
+        result = {}
+        for client_id, wrapper in wrappers:
+            result[client_id] = wrapper.get_user_info()
+        return {"status": "ok", "data": result}
 
     # ==================== Monitor Methods ====================
 
