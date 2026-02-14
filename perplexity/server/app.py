@@ -225,6 +225,9 @@ def run_query(
                 incognito=incognito,
             )
 
+            if response is None:
+                raise Exception("Empty response from Perplexity (connection may have dropped)")
+
             # Success
             pool.mark_client_success(client_id, mode=mode)
             clean_result = extract_clean_result(response)
