@@ -38,6 +38,7 @@ from .config import (
     ENDPOINT_UPLOAD_URL,
     SOCKS_PROXY,
 )
+from .exceptions import ValidationError
 class Client:
     """
     A client for interacting with the Perplexity AI API.
@@ -182,36 +183,27 @@ class Client:
             files = {}
 
         # Validate input parameters
-        assert mode in [
-            "auto",
-            "pro",
-            "reasoning",
-            "deep research",
-        ], "Invalid search mode."
-        assert (
-            model
-            in {
-                "auto": [None],
-                "pro": [
-                    None,
-                    "sonar",
-                    "gpt-5.2",
-                    "claude-4.5-sonnet",
-                    "grok-4.1",
-                ],
-                "reasoning": [None, "gpt-5.2-thinking", "claude-4.5-sonnet-thinking", "gemini-3.0-pro", "kimi-k2-thinking", "grok-4.1-reasoning"],
-                "deep research": [None],
-            }[mode]
-            if self.own
-            else True
-        ), "Invalid model for the selected mode."
-        assert all(
-            [source in ("web", "scholar", "social") for source in sources]
-        ), "Invalid sources."
-        assert (
-            self.copilot > 0 if mode in ["pro", "reasoning", "deep research"] else True
-        ), "No remaining pro queries."
-        assert self.file_upload - len(files) >= 0 if files else True, "File upload limit exceeded."
+        valid_modes = ("auto", "pro", "reasoning", "deep research")
+        if mode not in valid_modes:
+            raise ValidationError(f"Invalid search mode '{mode}'. Choose from: {', '.join(valid_modes)}")
+
+        valid_models = {
+            "auto": [None],
+            "pro": [None, "sonar", "gpt-5.2", "claude-4.5-sonnet", "grok-4.1"],
+            "reasoning": [None, "gpt-5.2-thinking", "claude-4.5-sonnet-thinking", "gemini-3.0-pro", "kimi-k2-thinking", "grok-4.1-reasoning"],
+            "deep research": [None],
+        }
+        if self.own and model not in valid_models[mode]:
+            raise ValidationError(f"Invalid model '{model}' for mode '{mode}'.")
+
+        if not all(source in ("web", "scholar", "social") for source in sources):
+            raise ValidationError("Invalid sources. Choose from: web, scholar, social")
+
+        if mode in ("pro", "reasoning", "deep research") and self.copilot <= 0:
+            raise ValidationError("No remaining pro queries.")
+
+        if files and self.file_upload - len(files) < 0:
+            raise ValidationError("File upload limit exceeded.")
 
         # Update query and file upload counters
         self.copilot = (
