@@ -20,7 +20,11 @@
 
 <br /><br />
 
-[Features](#-features) · [Screenshots](#%EF%B8%8F-screenshots) · [Quick Start](#-quick-start) · [How It Compares](#-how-it-compares) · [Admin Panel](#%EF%B8%8F-admin-panel) · [Architecture](#%EF%B8%8F-architecture)
+<img src="docs/images/dashboard.png" alt="Admin Dashboard" width="100%" />
+
+<br />
+
+[Features](#-features) · [Quick Start](#-quick-start) · [Admin Panel](#%EF%B8%8F-admin-panel) · [Configuration](#%EF%B8%8F-configuration) · [Architecture](#%EF%B8%8F-architecture)
 
 <br />
 
@@ -30,11 +34,11 @@
 
 ## 🎯 Why This One?
 
-There are a dozen Perplexity MCP servers on GitHub. Most give you a single tool wrapping the Perplexity API — one account, no monitoring, no fallback. **This one is built for real workloads:**
+Most Perplexity MCP servers are single-account wrappers around the paid Sonar API. **This one is different:**
 
-- 🆓 **No API costs** — uses session cookies, not the paid Perplexity API ($0/query vs $5/1000)
+- 🆓 **No API costs** — uses session cookies, not the paid API. Same features, zero per-query fees
 - 🏊 **Multi-account pool** — round-robin across N accounts with automatic failover
-- 📊 **Admin dashboard** — React UI to monitor quotas, manage tokens, tail logs
+- 📊 **Admin dashboard** — React UI to monitor quotas, manage tokens, tail logs in real-time
 - ❤️ **Zero-cost health checks** — monitors all accounts via rate-limit API without consuming queries
 - 🛡️ **Downgrade protection** — detects when Perplexity silently returns a regular result instead of deep research
 - 📱 **Telegram alerts** — get notified when tokens expire or quota runs out
@@ -85,14 +89,6 @@ There are a dozen Perplexity MCP servers on GitHub. Most give you a single tool 
 
 <div align="center">
 
-### Token Pool Dashboard
-
-<img src="docs/images/dashboard.png" alt="Token Pool Dashboard" width="100%" />
-
-<sub>Stats grid, monitor controls, sortable token table with per-account quotas (Pro / Research / Agentic), filter pills, and one-click actions.</sub>
-
-<br /><br />
-
 ### Log Viewer
 
 <img src="docs/images/logs.png" alt="Log Viewer" width="100%" />
@@ -100,31 +96,6 @@ There are a dozen Perplexity MCP servers on GitHub. Most give you a single tool 
 <sub>Live log streaming with auto-refresh, level filtering, search highlighting, follow mode, and line numbers.</sub>
 
 </div>
-
----
-
-## 📊 How It Compares
-
-Every other Perplexity MCP server is a single-account wrapper. This is the only one with pool management, monitoring, and an admin UI.
-
-| Feature | This project | Official (Perplexity) | jsonallen | cyanheads | Others |
-|:--------|:---:|:---:|:---:|:---:|:---:|
-| **Free (no API key)** | ✅ | ❌ API key | ❌ API key | ❌ API key | Mostly API key |
-| **Multi-account pool** | ✅ | ❌ | ❌ | ❌ | ❌ |
-| **Admin dashboard** | ✅ React | ❌ | ❌ | ❌ | ❌ |
-| **Health monitoring** | ✅ Zero-cost | ❌ | ❌ | ❌ | ❌ |
-| **Telegram alerts** | ✅ | ❌ | ❌ | ❌ | ❌ |
-| **Quota tracking** | ✅ Per-mode | ❌ | ❌ | ❌ | ❌ |
-| **Auto-fallback** | ✅ 3-level | ❌ | ❌ | ❌ | ❌ |
-| **Downgrade protection** | ✅ | ❌ | ❌ | ❌ | ❌ |
-| **Deep research** | ✅ | ✅ | ✅ | ✅ | Varies |
-| **Reasoning mode** | ✅ Auto-detect | ✅ | ✅ | ❌ | Varies |
-| **Multi-model** | ✅ 9 models | ✅ 4 models | ❌ 1 model | ❌ | Varies |
-| **Hot-reload config** | ✅ | ❌ | ❌ | ❌ | ❌ |
-| **Log viewer** | ✅ Live | ❌ | ❌ | ❌ | ❌ |
-
-> [!NOTE]
-> The [official Perplexity MCP server](https://github.com/perplexityai/modelcontextprotocol) uses the paid Sonar API ($5/1000 queries for Pro, $5/query for Deep Research). This project uses session cookies — same features, zero API cost.
 
 ---
 
@@ -234,7 +205,8 @@ Opens automatically at **`http://localhost:8123/admin/`**
 | 📊 **Stats Grid** | Total clients, Pro/Downgrade counts, Monitor status |
 | 📋 **Token Table** | Sortable columns, filter pills (Pro/Downgrade/Offline/Unknown), icon actions |
 | 💰 **Quota Column** | Per-token breakdown — Pro remaining, Research quota, Agentic research |
-| ❤️ **Health Monitor** | Zero-cost checks via rate-limit API, configurable interval, Telegram alerts |
+| ❤️ **Health Monitor** | Zero-cost checks via rate-limit API, configurable interval |
+| 📱 **Telegram Alerts** | Notifications on token state changes (expired, downgraded, back online) |
 | 🔄 **Fallback Toggle** | Enable/disable automatic Pro → free fallback |
 | 📥 **Import/Export** | Bulk token management via JSON config files |
 | 📝 **Log Viewer** | Live streaming, level filter (Error/Warning/Info/Debug), search, follow mode |
@@ -305,8 +277,6 @@ Add multiple accounts for **round-robin rotation** with automatic failover:
 | Variable | Default | Description |
 |:---------|:--------|:------------|
 | `PERPLEXITY_TIMEOUT` | `900` | Request timeout in seconds (15 min for deep research) |
-| `PERPLEXITY_MAX_RETRIES` | `2` | Retry attempts on transient failures |
-| `PPLX_ADMIN_TOKEN` | — | Admin token for authenticated API endpoints |
 | `SOCKS_PROXY` | — | SOCKS5 proxy URL (`socks5://host:port`) |
 
 ### Token States
