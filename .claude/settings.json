@@ -1,0 +1,13 @@
+{
+  "extraKnownMarketplaces": {
+    "prokai-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "geremyturcotte/prokai-plugins"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "prokai-core@prokai-plugins": true
+  }
+}

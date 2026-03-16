@@ -43,3 +43,19 @@ ENV/
 .vscode/
 *.swp
 *.swo
+
+# ProKai
+.prokai.env
+.claude/tmp/
+.claude/settings.local*.json
+.claude/archive/
+
+# Agent IDE rules
+.clinerules/
+.kilocode/
+.roo/
+.windsurf/
+.cursor/
+.kiro/
+.qoder/
+.augment/

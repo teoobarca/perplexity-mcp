@@ -128,4 +128,42 @@ Vite proxy paths: /pool, /monitor, /health, /logs, /fallback
 ```bash
 # Unit tests (no server required)
 .venv/bin/python -m pytest tests/test_config.py tests/test_utils.py tests/test_client_pool.py tests/test_research_downgrade.py -v
+
+# Full suite
+.venv/bin/python -m pytest tests/ -v
 ```
+
+## ProKai Integration
+
+- **Plugin**: `prokai-core` enabled via `.claude/settings.json`
+- **Stack**: `python` (detected by `detect-stack.sh` or manual override in `.prokai.config.json`)
+- **Ticket prefix**: `PRO-` (ProkAI team in Linear)
+- **Test command**: `.venv/bin/python -m pytest tests/ -v`
+- **Methodology**: auto (TDD default)
+- **Models**: Gemini 3.1 Pro for RED/REVIEW, native Claude for GREEN/REFACTOR
+
+### Available Skills
+
+All `prokai-core` skills apply (ceremony, TDD pipelines, guards, utils). `prokai-t3` is NOT enabled (not a T3 stack).
+
+### Multi-Repo Coordination
+
+This repo is consumed by ProKai via the plugin system as the `prokai-perplexity` MCP server:
+
+```
+prokai-plugins (prokai-core plugin)
+  └─ .mcp.json → starts perplexity-mcp as MCP server (stdio)
+       └─ Tools: perplexity_ask, perplexity_research, perplexity_council
+```
+
+Changes here affect all repos that have `prokai-core` enabled.
+
+### Commit Format
+
+```
+type(scope): description
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
+```
+
+Types: `fix`, `feat`, `chore`, `docs`, `test`, `refactor`

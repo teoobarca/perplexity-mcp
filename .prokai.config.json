@@ -1,0 +1,57 @@
+{
+  "$schema": "https://raw.githubusercontent.com/geremyturcotte/prokai-plugins/main/schema/prokai.config.schema.json",
+  "stack": "python",
+  "methodology": {
+    "mode": "auto",
+    "available": ["tdd", "sdd", "bdd", "pbt", "atdd", "edd", "fvdd"],
+    "default": "tdd",
+    "overrides": {}
+  },
+  "commands": {
+    "test": ".venv/bin/python -m pytest tests/ -v",
+    "check": ".venv/bin/python -m pytest tests/ -v --tb=short",
+    "build": "echo 'MCP server — no build step'",
+    "mutation": "echo 'not configured'"
+  },
+  "paths": {
+    "apiDir": "src/"
+  },
+  "project": {
+    "name": "perplexity-mcp",
+    "ticketPrefix": "PRO-"
+  },
+  "models": {
+    "red": "gemini-3.1-pro-preview",
+    "green": "native",
+    "refactor": "native",
+    "review": "gemini-3.1-pro-preview",
+    "kimi": "kimi-code/kimi-for-coding",
+    "codex": "gpt-5.3-codex"
+  },
+  "tdd": {
+    "mode": "auto",
+    "inter_review_max_rounds": 3,
+    "mutation_score_threshold": 80
+  },
+  "monitoring": {
+    "session_journal": true,
+    "process_snapshots": false
+  },
+  "ceremony": {
+    "auto_launch_monitor": false
+  },
+  "feedback": {
+    "enabled": false,
+    "auto_log": true,
+    "ingest_url": "",
+    "categories": [
+      "BLOCKER_ADAPTED",
+      "FRICTION",
+      "CONFUSION",
+      "OVERKILL",
+      "WORKS_WELL",
+      "MISSING",
+      "STACK_MISMATCH"
+    ]
+  }
+}
