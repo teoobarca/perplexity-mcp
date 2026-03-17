@@ -220,7 +220,7 @@ class Client:
 
         # Update query and file upload counters
         self.copilot = (
-            self.copilot - 1 if mode in ["pro", "reasoning", "deep research"] else self.copilot
+            self.copilot - 1 if mode in ["pro", "reasoning", "deep research", "model council"] else self.copilot
         )
         self.file_upload = self.file_upload - len(files) if files else self.file_upload
 

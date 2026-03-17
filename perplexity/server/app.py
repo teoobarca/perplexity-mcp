@@ -303,6 +303,7 @@ def run_query(
                 clean_result["fallback"] = True
                 clean_result["fallback_mode"] = "anonymous_auto"
                 clean_result["original_mode"] = mode
+                clean_result["original_model"] = model
                 return {"status": "ok", "data": clean_result}
             else:
                 logger.warning("Anonymous auto mode fallback failed: no answer in response")
