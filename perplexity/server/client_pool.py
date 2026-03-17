@@ -58,7 +58,7 @@ class ClientWrapper:
         """
         if self.session_valid is False:
             return False
-        if mode in ("pro", "reasoning"):
+        if mode in ("pro", "reasoning", "model council"):
             pro_rem = self.rate_limits.get("pro_remaining")
             return pro_rem is None or pro_rem > 0
         if mode == "deep research":
@@ -102,7 +102,7 @@ class ClientWrapper:
         needs_verify = False
         modes = self.rate_limits.get("modes", {})
 
-        if mode in ("pro", "reasoning"):
+        if mode in ("pro", "reasoning", "model council"):
             # Decrement pro_remaining
             pro_rem = self.rate_limits.get("pro_remaining")
             if pro_rem is not None and pro_rem > 0:

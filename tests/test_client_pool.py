@@ -741,3 +741,140 @@ class TestClientPoolConfigValidation:
                 ClientPool(config_path)
         finally:
             os.unlink(config_path)
+
+
+class TestModelCouncilQuota:
+    """Tests for 'model council' mode quota handling (PRO-220)."""
+
+    def test_has_quota_model_council_no_quota(self):
+        """Test that has_quota returns False for 'model council' when pro_remaining=0."""
+        from perplexity.server.client_pool import ClientWrapper
+
+        mock_client = MagicMock()
+        wrapper = ClientWrapper(mock_client, "test-id")
+        wrapper.session_valid = True
+        wrapper.rate_limits = {
+            "pro_remaining": 0,
+            "modes": {
+                "pro_search": {"available": True, "remaining": 0, "kind": "daily"},
+            },
+        }
+
+        result = wrapper.has_quota("model council")
+
+        assert result is False
+
+    def test_has_quota_model_council_has_quota(self):
+        """Test that has_quota returns True for 'model council' when pro_remaining=5."""
+        from perplexity.server.client_pool import ClientWrapper
+
+        mock_client = MagicMock()
+        wrapper = ClientWrapper(mock_client, "test-id")
+        wrapper.session_valid = True
+        wrapper.rate_limits = {
+            "pro_remaining": 5,
+            "modes": {
+                "pro_search": {"available": True, "remaining": 5, "kind": "daily"},
+            },
+        }
+
+        result = wrapper.has_quota("model council")
+
+        assert result is True
+
+    def test_has_quota_model_council_none_remaining(self):
+        """Test that has_quota returns True for 'model council' when pro_remaining=None (untracked)."""
+        from perplexity.server.client_pool import ClientWrapper
+
+        mock_client = MagicMock()
+        wrapper = ClientWrapper(mock_client, "test-id")
+        wrapper.session_valid = True
+        wrapper.rate_limits = {
+            "pro_remaining": None,
+            "modes": {
+                "pro_search": {"available": True, "remaining": None, "kind": None},
+            },
+        }
+
+        result = wrapper.has_quota("model council")
+
+        assert result is True
+
+    def test_has_quota_model_council_session_invalid(self):
+        """Test that has_quota returns False for 'model council' when session is invalid."""
+        from perplexity.server.client_pool import ClientWrapper
+
+        mock_client = MagicMock()
+        wrapper = ClientWrapper(mock_client, "test-id")
+        wrapper.session_valid = False
+        wrapper.rate_limits = {
+            "pro_remaining": 5,
+            "modes": {
+                "pro_search": {"available": True, "remaining": 5, "kind": "daily"},
+            },
+        }
+
+        result = wrapper.has_quota("model council")
+
+        assert result is False
+
+    def test_decrement_quota_model_council(self):
+        """Test that decrement_quota decreases pro counters for 'model council' mode."""
+        from perplexity.server.client_pool import ClientWrapper
+
+        mock_client = MagicMock()
+        wrapper = ClientWrapper(mock_client, "test-id")
+        wrapper.rate_limits = {
+            "pro_remaining": 5,
+            "modes": {
+                "pro_search": {"available": True, "remaining": 5, "kind": "daily"},
+            },
+        }
+
+        needs_verify = wrapper.decrement_quota("model council")
+
+        assert wrapper.rate_limits["pro_remaining"] == 4
+        assert wrapper.rate_limits["modes"]["pro_search"]["remaining"] == 4
+        assert needs_verify is False
+
+    def test_decrement_quota_model_council_reaches_zero(self):
+        """Test that decrement_quota returns True when 'model council' counter hits 0."""
+        from perplexity.server.client_pool import ClientWrapper
+
+        mock_client = MagicMock()
+        wrapper = ClientWrapper(mock_client, "test-id")
+        wrapper.rate_limits = {
+            "pro_remaining": 1,
+            "modes": {
+                "pro_search": {"available": True, "remaining": 1, "kind": "daily"},
+            },
+        }
+
+        needs_verify = wrapper.decrement_quota("model council")
+
+        assert wrapper.rate_limits["pro_remaining"] == 0
+        assert wrapper.rate_limits["modes"]["pro_search"]["remaining"] == 0
+        assert needs_verify is True
+
+    def test_has_quota_model_council_exact_boundary(self):
+        """Test boundary: pro_remaining=1 -> True, then after decrement to 0 -> False."""
+        from perplexity.server.client_pool import ClientWrapper
+
+        mock_client = MagicMock()
+        wrapper = ClientWrapper(mock_client, "test-id")
+        wrapper.session_valid = True
+        wrapper.rate_limits = {
+            "pro_remaining": 1,
+            "modes": {
+                "pro_search": {"available": True, "remaining": 1, "kind": "daily"},
+            },
+        }
+
+        # With 1 remaining, should have quota
+        assert wrapper.has_quota("model council") is True
+
+        # Decrement to 0
+        wrapper.decrement_quota("model council")
+
+        # With 0 remaining, should NOT have quota
+        assert wrapper.has_quota("model council") is False
