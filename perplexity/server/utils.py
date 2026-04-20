@@ -5,35 +5,32 @@ This module provides helper functions for validation
 and other common operations used by the server.
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 try:
     from ..exceptions import ValidationError
     from ..config import (
         SEARCH_MODES,
         SEARCH_SOURCES,
-        MODEL_MAPPINGS,
     )
 except ImportError:
     from perplexity.exceptions import ValidationError
     from perplexity.config import (
         SEARCH_MODES,
         SEARCH_SOURCES,
-        MODEL_MAPPINGS,
     )
 
 
 # ==================== Validation Functions ====================
 
 def validate_search_params(
-    mode: str, model: Optional[str], sources: list, own_account: bool = False
+    mode: str, sources: list, own_account: bool = False
 ) -> None:
     """
     Validate search parameters.
 
     Args:
         mode: Search mode
-        model: Model name (optional)
         sources: List of sources
         own_account: Whether using own account
 
@@ -41,31 +38,12 @@ def validate_search_params(
         ValidationError: If parameters are invalid
 
     Example:
-        >>> validate_search_params("pro", "gpt-4.5", ["web"], True)
+        >>> validate_search_params("pro", ["web"], True)
     """
     # Validate mode - guard against None SEARCH_MODES
     if SEARCH_MODES is None or mode not in SEARCH_MODES:
         valid_modes = ', '.join(SEARCH_MODES) if SEARCH_MODES else "auto, pro, reasoning, deep research"
         raise ValidationError(f"Invalid mode '{mode}'. Must be one of: {valid_modes}")
-
-    # Validate model - guard against None MODEL_MAPPINGS
-    if model is not None:
-        if MODEL_MAPPINGS is None:
-            valid_models = [None]
-        else:
-            valid_models = list(MODEL_MAPPINGS.get(mode, {}).keys())
-        if model not in valid_models:
-            raise ValidationError(
-                f"Invalid model '{model}' for mode '{mode}'. "
-                f"Valid models: {', '.join(str(m) for m in valid_models)}"
-            )
-
-    # Check if model requires own account
-    if model is not None and not own_account:
-        raise ValidationError(
-            "Model selection requires an account with cookies. "
-            "Initialize Client with cookies parameter."
-        )
 
     # Validate sources - guard against None SEARCH_SOURCES
     if SEARCH_SOURCES is None:

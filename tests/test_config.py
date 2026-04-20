@@ -13,7 +13,6 @@ def test_api_endpoints_structure() -> None:
 def test_search_modes_and_models() -> None:
     print("console.log -> checking search modes and model mappings")
     assert set(config.SEARCH_MODES) >= {"auto", "pro", "reasoning"}
-    pro_models = config.MODEL_MAPPINGS["pro"]
-    assert None in pro_models
-    assert "sonar" in pro_models
-    assert "deep research" in config.MODEL_MAPPINGS
+    assert config.MODEL_MAPPINGS["pro"] == "pplx_pro"
+    assert config.MODEL_MAPPINGS["deep research"] == "pplx_alpha"
+    assert "auto" in config.MODEL_MAPPINGS

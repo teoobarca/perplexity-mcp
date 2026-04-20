@@ -58,25 +58,12 @@ SEARCH_MODES = ["auto", "pro", "reasoning", "deep research"]
 SEARCH_SOURCES = ["web", "scholar", "social"]
 SEARCH_LANGUAGES = ["en-US", "en-GB", "pt-BR", "es-ES", "fr-FR", "de-DE", "zh-CN"]
 
-# Model Mappings
-MODEL_MAPPINGS: Dict[str, Dict[str, str]] = {
-    "auto": {None: "turbo"},
-    "pro": {
-        None: "pplx_pro",
-        "sonar": "experimental",
-        "gpt-5.2": "gpt52",
-        "claude-4.5-sonnet": "claude45sonnet",
-        "grok-4.1": "grok41nonreasoning",
-    },
-    "reasoning": {
-        None: "pplx_reasoning",
-        "gpt-5.2-thinking": "gpt52_thinking",
-        "claude-4.5-sonnet-thinking": "claude45sonnetthinking",
-        "gemini-3.0-pro": "gemini30pro",
-        "kimi-k2-thinking": "kimik2thinking",
-        "grok-4.1-reasoning": "grok41reasoning",
-    },
-    "deep research": {None: "pplx_alpha"},
+# Model Mappings (default model per mode, no user-facing model selection)
+MODEL_MAPPINGS: Dict[str, str] = {
+    "auto": "turbo",
+    "pro": "pplx_pro",
+    "reasoning": "pplx_reasoning",
+    "deep research": "pplx_alpha",
 }
 
 # HTTP Headers Template
@@ -112,6 +99,10 @@ RETRY_EXCEPTIONS = (ConnectionError, TimeoutError)
 LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 LOG_LEVEL = "DEBUG"
 LOG_FILE = "perplexity.log"
+
+# Request Journal
+JOURNAL_FILE = "request_journal.jsonl"
+JOURNAL_MAX_SIZE_MB = 50  # Rotate when file exceeds this size
 
 # Rate Limiting
 RATE_LIMIT_MIN_DELAY = 1.0  # seconds

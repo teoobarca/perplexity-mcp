@@ -64,8 +64,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
 
     # Extract arguments
     query = arguments.get("query", "")
-    model = arguments.get("model")
-    mode = get_mode_for_tool(name, model)
+    mode = get_mode_for_tool(name)
     sources = arguments.get("sources") or TOOL_DEFAULT_SOURCES.get(name, ["web"])
     language = arguments.get("language", "en-US")
 
@@ -91,7 +90,6 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
                 lambda: run_query(
                     query=query,
                     mode=mode,
-                    model=model,
                     sources=sources,
                     language=language,
                     fallback_to_auto=True,

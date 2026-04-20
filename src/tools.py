@@ -2,7 +2,7 @@
 MCP Tool definitions for Perplexity.
 
 Two tools:
-- perplexity_ask: Pro search + reasoning (auto-detected from model name)
+- perplexity_ask: Pro search (default model)
 - perplexity_research: Deep research mode
 
 Tool descriptions are optimized for LLM agents.
@@ -10,17 +10,11 @@ Tool descriptions are optimized for LLM agents.
 
 from mcp.types import Tool
 
-# Reasoning model keywords — if model name contains these, use reasoning mode
-_REASONING_KEYWORDS = ("thinking", "reasoning")
 
-
-def get_mode_for_tool(name: str, model: str = None) -> str:
-    """Determine the Perplexity search mode from tool name and model."""
+def get_mode_for_tool(name: str) -> str:
+    """Determine the Perplexity search mode from tool name."""
     if name == "perplexity_research":
         return "deep research"
-    # perplexity_ask — auto-detect reasoning mode from model name
-    if model and any(kw in model for kw in _REASONING_KEYWORDS):
-        return "reasoning"
     return "pro"
 
 
@@ -58,15 +52,6 @@ TOOLS = [
                 "language": {
                     "type": "string",
                     "description": "ISO 639 language code. Default: 'en-US'"
-                },
-                "model": {
-                    "type": "string",
-                    "description": (
-                        "Optional model selection. Available: sonar, gpt-5.2, claude-4.5-sonnet, grok-4.1, "
-                        "gpt-5.2-thinking, claude-4.5-sonnet-thinking, gemini-3.0-pro, kimi-k2-thinking, "
-                        "grok-4.1-reasoning. Leave empty for default. "
-                        "Models with 'thinking'/'reasoning' in the name automatically use reasoning mode."
-                    )
                 }
             },
             "required": ["query"]

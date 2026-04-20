@@ -1136,27 +1136,43 @@ class ClientPool:
 
         Uses atomic write (tempfile + os.replace) to prevent corruption.
         Only saves state and last_check — backoff stays per-process.
+
+        Merges with existing state file to preserve state for clients this
+        process doesn't know about (e.g. tokens added via admin UI while
+        a stale MCP process is still running).
         """
         state_path = self._state_file_path()
         if state_path is None:
             return
 
         try:
-            state = {
-                "version": 2,
-                "updated_at": time.time(),
-                "writer": writer,
-                "clients": {},
-            }
+            # Read existing state to preserve clients we don't know about
+            existing_clients = {}
+            if os.path.exists(state_path):
+                try:
+                    with open(state_path, "r", encoding="utf-8") as f:
+                        existing = json.load(f)
+                    existing_clients = existing.get("clients", {})
+                except (json.JSONDecodeError, OSError):
+                    pass  # Corrupted or unreadable — start fresh
 
+            # Merge: start with existing, overwrite with our known clients
+            merged_clients = existing_clients.copy()
             with self._lock:
                 for client_id, wrapper in self.clients.items():
-                    state["clients"][client_id] = {
+                    merged_clients[client_id] = {
                         "session_valid": wrapper.session_valid,
                         "state": wrapper.state,  # computed, for backward compat
                         "last_check": wrapper.last_check,
                         "rate_limits": wrapper.rate_limits,
                     }
+
+            state = {
+                "version": 2,
+                "updated_at": time.time(),
+                "writer": writer,
+                "clients": merged_clients,
+            }
 
             dir_name = os.path.dirname(state_path) or "."
             fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix=".tmp")

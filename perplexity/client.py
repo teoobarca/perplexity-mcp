@@ -9,6 +9,7 @@
 import re
 import sys
 import json
+import time
 import random
 import mimetypes
 from uuid import uuid4
@@ -36,9 +37,13 @@ from .config import (
     ENDPOINT_RATE_LIMIT_STATUS,
     ENDPOINT_SSE_ASK,
     ENDPOINT_UPLOAD_URL,
+    MODEL_MAPPINGS,
     SOCKS_PROXY,
 )
 from .exceptions import ValidationError
+from .logger import get_logger
+
+logger = get_logger("client")
 class Client:
     """
     A client for interacting with the Perplexity AI API.
@@ -155,6 +160,10 @@ class Client:
         """Verify the response is actually a deep research result, not a silent downgrade."""
         text = response.get("text")
         if isinstance(text, str) or text is None:
+            logger.warning(
+                "Deep research downgrade detected: text type=%s, response_keys=%s",
+                type(text).__name__, list(response.keys()),
+            )
             raise Exception(
                 "Deep research was silently downgraded to a regular search by the server. "
                 "This account may not have research quota remaining."
@@ -164,7 +173,6 @@ class Client:
         self,
         query,
         mode="auto",
-        model=None,
         sources=None,
         files=None,
         stream=False,
@@ -178,7 +186,6 @@ class Client:
         Parameters:
         - query: The search query string.
         - mode: Search mode ('auto', 'pro', 'reasoning', 'deep research').
-        - model: Specific model to use for the query.
         - sources: List of sources ('web', 'scholar', 'social').
         - files: Dictionary of files to upload.
         - stream: Whether to stream the response.
@@ -195,15 +202,6 @@ class Client:
         valid_modes = ("auto", "pro", "reasoning", "deep research")
         if mode not in valid_modes:
             raise ValidationError(f"Invalid search mode '{mode}'. Choose from: {', '.join(valid_modes)}")
-
-        valid_models = {
-            "auto": [None],
-            "pro": [None, "sonar", "gpt-5.2", "claude-4.5-sonnet", "grok-4.1"],
-            "reasoning": [None, "gpt-5.2-thinking", "claude-4.5-sonnet-thinking", "gemini-3.0-pro", "kimi-k2-thinking", "grok-4.1-reasoning"],
-            "deep research": [None],
-        }
-        if self.own and model not in valid_models[mode]:
-            raise ValidationError(f"Invalid model '{model}' for mode '{mode}'.")
 
         if not all(source in ("web", "scholar", "social") for source in sources):
             raise ValidationError("Invalid sources. Choose from: web, scholar, social")
@@ -280,25 +278,7 @@ class Client:
                 "language": language,
                 "last_backend_uuid": (follow_up["backend_uuid"] if follow_up else None),
                 "mode": "concise" if mode == "auto" else "copilot",
-                "model_preference": {
-                    "auto": {None: "turbo"},
-                    "pro": {
-                        None: "pplx_pro",
-                        "sonar": "experimental",
-                        "gpt-5.2": "gpt52",
-                        "claude-4.5-sonnet": "claude45sonnet",
-                        "grok-4.1": "grok41nonreasoning",
-                    },
-                    "reasoning": {
-                        None: "pplx_reasoning",
-                        "gpt-5.2-thinking": "gpt52_thinking",
-                        "claude-4.5-sonnet-thinking": "claude45sonnetthinking",
-                        "gemini-3.0-pro": "gemini30pro",
-                        "kimi-k2-thinking": "kimik2thinking",
-                        "grok-4.1-reasoning": "grok41reasoning",
-                    },
-                    "deep research": {None: "pplx_alpha"},
-                }[mode][model],
+                "model_preference": MODEL_MAPPINGS[mode],
                 "source": "default",
                 "sources": sources,
                 "version": "2.18",
@@ -306,45 +286,81 @@ class Client:
         }
 
         # Send the query request and handle the response
+        logger.info(
+            "Search request: mode=%s, sources=%s, query=%.200s",
+            mode, sources, query,
+        )
+
         resp = self.session.post(ENDPOINT_SSE_ASK, json=json_data, stream=True, timeout=120)
+        logger.debug("SSE response status: %s", resp.status_code)
         chunks = []
 
+        def _parse_sse_event(content_json, event_num):
+            """Parse nested text field, extract answer and research report from steps."""
+            if "text" not in content_json or not content_json["text"]:
+                return
+            try:
+                text_parsed = json.loads(content_json["text"])
+                if isinstance(text_parsed, list):
+                    logger.debug(
+                        "SSE #%d: %d steps, types=%s", event_num, len(text_parsed),
+                        [s.get("step_type") for s in text_parsed if isinstance(s, dict)],
+                    )
+                    for step in text_parsed:
+                        step_type = step.get("step_type") if isinstance(step, dict) else None
+
+                        if step_type == "RESEARCH_ANSWER":
+                            # Deep research report lives in assets[0].research_report
+                            for asset in step.get("assets", []):
+                                report = asset.get("research_report", {})
+                                src = report.get("source_content", "")
+                                if src:
+                                    content_json["research_report"] = src
+                                    content_json["research_title"] = report.get("name", "")
+                                    logger.info(
+                                        "RESEARCH_ANSWER: title=%r, report=%d chars",
+                                        report.get("name"), len(src),
+                                    )
+
+                        elif step_type == "FINAL":
+                            final_content = step.get("content", {})
+                            if "answer" in final_content:
+                                answer_data = json.loads(final_content["answer"])
+                                content_json["answer"] = answer_data.get("answer", "")
+                                content_json["chunks"] = answer_data.get("chunks", [])
+                                content_json["web_results"] = answer_data.get("web_results", [])
+                                logger.debug(
+                                    "FINAL step: answer_len=%d, chunks=%d, web_results=%d",
+                                    len(content_json["answer"]),
+                                    len(content_json["chunks"]),
+                                    len(content_json["web_results"]),
+                                )
+
+                content_json["text"] = text_parsed
+            except (json.JSONDecodeError, TypeError, KeyError) as e:
+                logger.warning(
+                    "Failed to parse text field in SSE #%d: %s. "
+                    "text type=%s, preview=%.300s",
+                    event_num, e,
+                    type(content_json.get("text")).__name__,
+                    str(content_json.get("text", ""))[:300],
+                )
+
         def stream_response(resp):
-            """
-            Generator for streaming responses.
-            """
+            """Generator for streaming responses."""
+            event_num = 0
             for chunk in resp.iter_lines(delimiter=b"\r\n\r\n"):
                 content = chunk.decode("utf-8")
 
                 if content.startswith("event: message\r\n"):
                     try:
                         content_json = json.loads(content[len("event: message\r\ndata: ") :])
-
-                        # Parse the nested 'text' field if it exists
-                        if "text" in content_json and content_json["text"]:
-                            try:
-                                text_parsed = json.loads(content_json["text"])
-                                # Extract answer from FINAL step if available
-                                if isinstance(text_parsed, list):
-                                    for step in text_parsed:
-                                        if step.get("step_type") == "FINAL":
-                                            final_content = step.get("content", {})
-                                            if "answer" in final_content:
-                                                answer_data = json.loads(final_content["answer"])
-                                                content_json["answer"] = answer_data.get(
-                                                    "answer", ""
-                                                )
-                                                content_json["chunks"] = answer_data.get(
-                                                    "chunks", []
-                                                )
-                                                break
-                                content_json["text"] = text_parsed
-                            except (json.JSONDecodeError, TypeError, KeyError):
-                                pass
-
+                        event_num += 1
+                        _parse_sse_event(content_json, event_num)
                         chunks.append(content_json)
                         yield chunks[-1]
-                    except (json.JSONDecodeError, KeyError):
+                    except (json.JSONDecodeError, KeyError) as e:
+                        logger.warning("Failed to parse SSE event JSON: %s, raw=%.200s", e, content[:200])
                         continue
 
                 elif content.startswith("event: end_of_stream\r\n"):
@@ -353,37 +369,56 @@ class Client:
         if stream:
             return stream_response(resp)
 
+        t_start = time.time()
+        event_count = 0
+        step_types_seen = []
+
         for chunk in resp.iter_lines(delimiter=b"\r\n\r\n"):
             content = chunk.decode("utf-8")
 
             if content.startswith("event: message\r\n"):
                 try:
                     content_json = json.loads(content[len("event: message\r\ndata: ") :])
+                    event_count += 1
+                    _parse_sse_event(content_json, event_count)
 
-                    # Parse the nested 'text' field if it exists
-                    if "text" in content_json and content_json["text"]:
-                        try:
-                            text_parsed = json.loads(content_json["text"])
-                            # Extract answer from FINAL step if available
-                            if isinstance(text_parsed, list):
-                                for step in text_parsed:
-                                    if step.get("step_type") == "FINAL":
-                                        final_content = step.get("content", {})
-                                        if "answer" in final_content:
-                                            answer_data = json.loads(final_content["answer"])
-                                            content_json["answer"] = answer_data.get("answer", "")
-                                            content_json["chunks"] = answer_data.get("chunks", [])
-                                            break
-                            content_json["text"] = text_parsed
-                        except (json.JSONDecodeError, TypeError, KeyError):
-                            pass
+                    # Track step types for journal
+                    if isinstance(content_json.get("text"), list):
+                        for step in content_json["text"]:
+                            if isinstance(step, dict) and step.get("step_type"):
+                                st = step["step_type"]
+                                if st not in step_types_seen:
+                                    step_types_seen.append(st)
 
                     chunks.append(content_json)
-                except (json.JSONDecodeError, KeyError):
+                except (json.JSONDecodeError, KeyError) as e:
+                    logger.warning("Failed to parse SSE event JSON: %s, raw=%.200s", e, content[:200])
                     continue
 
             elif content.startswith("event: end_of_stream\r\n"):
+                duration_ms = (time.time() - t_start) * 1000
                 result = chunks[-1] if chunks else {}
+
+                if not chunks:
+                    logger.warning("Search returned 0 chunks — response may be empty or format changed")
+
+                logger.info(
+                    "Search complete: %.0fms, %d events, %d chunks, answer=%s, keys=%s, steps=%s",
+                    duration_ms, event_count, len(chunks),
+                    "yes(%d)" % len(result.get("answer", "")) if "answer" in result else "NO",
+                    list(result.keys()) if result else [],
+                    step_types_seen,
+                )
+
+                # Store metadata for journal (consumed by app.py)
+                if result:
+                    result["_meta"] = {
+                        "duration_ms": duration_ms,
+                        "sse_event_count": event_count,
+                        "step_types": step_types_seen,
+                        "chunk_count": len(chunks),
+                    }
+
                 if mode == "deep research" and result:
                     self._validate_research_response(result)
                 return result

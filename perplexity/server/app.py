@@ -4,6 +4,7 @@ Starlette application instance and shared utilities.
 
 import os
 import re
+import time
 from contextlib import asynccontextmanager
 from typing import Any, Dict, Iterable, List, Optional, Union
 
@@ -72,52 +73,71 @@ def normalize_files(files: Optional[Union[Dict[str, Any], Iterable[str]]]) -> Di
 
 
 def extract_clean_result(response: Dict[str, Any]) -> Dict[str, Any]:
-    """Extract the final answer and source links from the search response."""
+    """Extract the final answer and source links from the search response.
+
+    For deep research, the full report is in RESEARCH_ANSWER step's
+    assets[0].research_report.source_content (extracted by client as
+    'research_report'). The FINAL step's 'answer' is just a short summary.
+    """
     result = {}
 
-    # Extract final answer
-    if "answer" in response:
+    # Prefer full research report over short summary
+    if "research_report" in response:
+        result["answer"] = response["research_report"]
+        if response.get("research_title"):
+            result["answer"] = f"# {response['research_title']}\n\n{result['answer']}"
+        logger.info("Using research report: %d chars", len(result["answer"]))
+    elif "answer" in response:
         result["answer"] = response["answer"]
+        logger.debug("Using summary answer: %d chars", len(result["answer"]))
+    else:
+        logger.warning(
+            "No answer in response. Keys: %s",
+            [k for k in response.keys() if not k.startswith("_")],
+        )
 
     # Extract source links
     sources = []
 
-    # Method 1: Extract web_results from SEARCH_RESULTS steps in the text field
-    if "text" in response and isinstance(response["text"], list):
+    # Method 1: web_results from FINAL step's answer_data (most complete for research)
+    if "web_results" in response and isinstance(response["web_results"], list):
+        for wr in response["web_results"]:
+            if isinstance(wr, dict) and "url" in wr:
+                source = {"url": wr["url"]}
+                if "name" in wr:
+                    source["title"] = wr["name"]
+                sources.append(source)
+
+    # Method 2: web_results from SEARCH_RESULTS steps in text field
+    if not sources and "text" in response and isinstance(response["text"], list):
         for step in response["text"]:
             if isinstance(step, dict) and step.get("step_type") == "SEARCH_RESULTS":
-                content = step.get("content", {})
-                web_results = content.get("web_results", [])
-                for web_result in web_results:
-                    if isinstance(web_result, dict) and "url" in web_result:
-                        source = {"url": web_result["url"]}
-                        if "name" in web_result:
-                            source["title"] = web_result["name"]
+                for wr in step.get("content", {}).get("web_results", []):
+                    if isinstance(wr, dict) and "url" in wr:
+                        source = {"url": wr["url"]}
+                        if "name" in wr:
+                            source["title"] = wr["name"]
                         sources.append(source)
 
-    # Method 2: Fallback - extract from chunks field (if chunks contain URLs)
+    # Method 3: chunks field fallback
     if not sources and "chunks" in response and isinstance(response["chunks"], list):
         for chunk in response["chunks"]:
-            if isinstance(chunk, dict):
-                source = {}
-                if "url" in chunk:
-                    source["url"] = chunk["url"]
+            if isinstance(chunk, dict) and "url" in chunk:
+                source = {"url": chunk["url"]}
                 if "title" in chunk:
                     source["title"] = chunk["title"]
-                if "name" in chunk and "title" not in source:
+                elif "name" in chunk:
                     source["title"] = chunk["name"]
-                if "url" in source:
-                    sources.append(source)
+                sources.append(source)
 
     result["sources"] = sources
-
+    logger.debug("Sources: %d items", len(sources))
     return result
 
 
 def run_query(
     query: str,
     mode: str,
-    model: Optional[str] = None,
     sources: Optional[List[str]] = None,
     language: str = "en-US",
     incognito: bool = False,
@@ -137,9 +157,12 @@ def run_query(
         fallback_to_auto: If True, attempt auto mode fallback when all Pro clients fail
     """
     from ..logger import get_logger
+    from ..journal import get_journal
     logger = get_logger("server.app")
+    journal = get_journal()
 
     pool = get_pool()
+    t_start = time.time()
 
     # --- 1. Stateless Validation ---
     try:
@@ -165,7 +188,7 @@ def run_query(
     should_fallback = fallback_to_auto and pool.is_fallback_to_auto_enabled()
     is_pro_mode = mode in ("pro", "reasoning", "deep research")
 
-    logger.debug(f"Starting query: mode={mode}, model={model}, fallback_enabled={should_fallback}, is_pro_mode={is_pro_mode}")
+    logger.debug(f"Starting query: mode={mode}, fallback_enabled={should_fallback}, is_pro_mode={is_pro_mode}")
 
     # --- 3. Client Pool Rotation ---
     # get_client(mode) returns only clients with quota for this mode
@@ -194,15 +217,14 @@ def run_query(
         logger.debug(f"[{client_id}] Selected for mode={mode}")
 
         try:
-            validate_search_params(mode, model, chosen_sources, own_account=client.own)
+            validate_search_params(mode, chosen_sources, own_account=client.own)
             validate_query_limits(client.copilot, client.file_upload, mode, len(normalized_files))
 
-            logger.debug(f"[{client_id}] Executing search: mode={mode}, model={model}")
+            logger.debug(f"[{client_id}] Executing search: mode={mode}")
 
             response = client.search(
                 clean_query,
                 mode=mode,
-                model=model,
                 sources=chosen_sources,
                 files=normalized_files,
                 stream=False,
@@ -215,7 +237,33 @@ def run_query(
 
             pool.mark_client_success(client_id, mode=mode)
             clean_result = extract_clean_result(response)
-            logger.debug(f"[{client_id}] Query succeeded")
+            duration_ms = (time.time() - t_start) * 1000
+
+            # Extract metadata from client.py
+            meta = response.pop("_meta", {})
+            response_keys = [k for k in response.keys() if not k.startswith("_")]
+
+            logger.info(
+                "[%s] Query OK: mode=%s, answer_len=%d, sources=%d, %.0fms",
+                client_id, mode,
+                len(clean_result.get("answer", "")),
+                len(clean_result.get("sources", [])),
+                duration_ms,
+            )
+            journal.record(
+                query=clean_query,
+                mode=mode,
+                sources=chosen_sources,
+                client_id=client_id,
+                duration_ms=duration_ms,
+                status="ok",
+                response_keys=response_keys,
+                answer_length=len(clean_result.get("answer", "")),
+                source_count=len(clean_result.get("sources", [])),
+                chunk_count=meta.get("chunk_count"),
+                sse_event_count=meta.get("sse_event_count"),
+                step_types=meta.get("step_types"),
+            )
             return {"status": "ok", "data": clean_result}
 
         except ValidationError as exc:
@@ -249,12 +297,11 @@ def run_query(
                 f"[{fallback_id}] FALLBACK: switching from mode='{mode}' to mode='auto'"
             )
             try:
-                validate_search_params("auto", None, chosen_sources, own_account=fallback_client.own)
+                validate_search_params("auto", chosen_sources, own_account=fallback_client.own)
 
                 response = fallback_client.search(
                     clean_query,
                     mode="auto",
-                    model=None,
                     sources=chosen_sources,
                     files={},
                     stream=False,
@@ -268,8 +315,15 @@ def run_query(
                     clean_result["fallback"] = True
                     clean_result["fallback_mode"] = "auto"
                     clean_result["original_mode"] = mode
-                    clean_result["original_model"] = model
                     logger.info(f"[{fallback_id}] Fallback succeeded: '{mode}' -> 'auto'")
+                    journal.record(
+                        query=clean_query, mode="auto",
+                        sources=chosen_sources, client_id=fallback_id,
+                        duration_ms=(time.time() - t_start) * 1000,
+                        status="ok", fallback=True,
+                        answer_length=len(clean_result.get("answer", "")),
+                        source_count=len(clean_result.get("sources", [])),
+                    )
                     return {"status": "ok", "data": clean_result}
                 else:
                     last_error = Exception("Fallback search returned no answer")
@@ -287,7 +341,6 @@ def run_query(
             response = anonymous_client.search(
                 clean_query,
                 mode="auto",
-                model=None,
                 sources=chosen_sources,
                 files={},
                 stream=False,
@@ -307,7 +360,13 @@ def run_query(
             logger.warning(f"Anonymous auto mode fallback failed: {anon_exc}")
 
     # --- 6. Final Error Handling ---
+    duration_ms = (time.time() - t_start) * 1000
     logger.warning(f"Query failed after trying {len(attempted_clients)} clients: {last_error}")
+    journal.record(
+        query=clean_query, mode=mode,
+        sources=chosen_sources, duration_ms=duration_ms,
+        status="error", error=str(last_error),
+    )
     return {
         "status": "error",
         "error_type": last_error.__class__.__name__ if last_error else "RequestFailed",

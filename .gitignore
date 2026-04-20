@@ -10,6 +10,7 @@ perplexity/server/web/dist/
 
 # Logs
 perplexity.log
+request_journal.jsonl*
 
 # Python
 __pycache__/

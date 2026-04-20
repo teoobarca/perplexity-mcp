@@ -381,30 +381,42 @@ function QuotaCell({ rl }: { rl?: RateLimits }) {
   const research = modes['research']
   const agentic = modes['agentic_research']
 
-  const items: { label: string; value: number | null | undefined; color: string }[] = []
+  const items: { label: string; display: string; color: string }[] = []
 
   if (pro != null) {
     items.push({
       label: 'Pro',
-      value: pro,
+      display: String(pro),
       color: pro > 0 ? 'text-success' : 'text-error',
     })
   }
 
-  if (research?.remaining != null) {
-    items.push({
-      label: 'Research',
-      value: research.remaining,
-      color: research.remaining > 0 ? 'text-accent' : 'text-error',
-    })
+  if (research) {
+    if (!research.available) {
+      items.push({ label: 'Research', display: String(research.remaining ?? 0), color: 'text-error' })
+    } else if (research.remaining != null) {
+      items.push({
+        label: 'Research',
+        display: String(research.remaining),
+        color: research.remaining > 0 ? 'text-accent' : 'text-error',
+      })
+    } else {
+      items.push({ label: 'Research', display: '\u2713', color: 'text-accent' })
+    }
   }
 
-  if (agentic?.remaining != null) {
-    items.push({
-      label: 'Agentic',
-      value: agentic.remaining,
-      color: agentic.remaining > 0 ? 'text-info' : 'text-error',
-    })
+  if (agentic) {
+    if (!agentic.available) {
+      items.push({ label: 'Agentic', display: String(agentic.remaining ?? 0), color: 'text-error' })
+    } else if (agentic.remaining != null) {
+      items.push({
+        label: 'Agentic',
+        display: String(agentic.remaining),
+        color: agentic.remaining > 0 ? 'text-info' : 'text-error',
+      })
+    } else {
+      items.push({ label: 'Agentic', display: '\u2713', color: 'text-info' })
+    }
   }
 
   if (items.length === 0) {
@@ -416,7 +428,7 @@ function QuotaCell({ rl }: { rl?: RateLimits }) {
       {items.map((item) => (
         <div key={item.label} className="flex items-center gap-1.5 text-xs">
           <span className="text-text-muted w-14">{item.label}</span>
-          <span className={`font-mono font-medium ${item.color}`}>{item.value}</span>
+          <span className={`font-mono font-medium ${item.color}`}>{item.display}</span>
         </div>
       ))}
     </div>

@@ -13,11 +13,11 @@ def test_sanitize_query_trims_and_validates() -> None:
         sanitize_query("")
 
 
-def test_validate_search_params_requires_own_account() -> None:
-    print("console.log -> validating search params requirements")
-    validate_search_params("auto", None, ["web"], own_account=False)
-    with pytest.raises(ValidationError):
-        validate_search_params("pro", "sonar", ["web"], own_account=False)
+def test_validate_search_params_valid() -> None:
+    print("console.log -> validating search params")
+    validate_search_params("auto", ["web"], own_account=False)
+    validate_search_params("pro", ["web"], own_account=True)
+    validate_search_params("deep research", ["web", "scholar"], own_account=True)
 
 
 def test_client_limit_pattern_matches_correctly() -> None:
