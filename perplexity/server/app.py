@@ -201,6 +201,8 @@ def run_query(
 
         if client_id is None:
             # No clients have quota for this mode
+            if not attempted_clients:
+                last_error = Exception(f"No clients have quota available for mode='{mode}'")
             break
 
         if client is None:
